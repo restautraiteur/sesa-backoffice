@@ -380,8 +380,8 @@ const EMPTY_PARTNER: PartnerDraft = {
   contact_email: "",
   delivery_address: "",
   delivery_time: "13:00",
-  cutoff_time: "06:00",
-  cutoff_day_offset: "0",
+  cutoff_time: "07:00",
+  cutoff_day_offset: "1",
   active: true,
   logo_url: "",
   payment_terms_days: "30",
@@ -669,8 +669,18 @@ function PartnerDialog({
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              Exemple : 06:00 « le jour même » = pour un repas livré mardi, commandes jusqu'à mardi
-              6 h ; ensuite, l'employé commande pour le jour suivant.
+              {(() => {
+                const time = (draft.cutoff_time || "07:00").replace(":", " h ");
+                const when =
+                  draft.cutoff_day_offset === "0"
+                    ? "mercredi"
+                    : draft.cutoff_day_offset === "1"
+                      ? "mardi"
+                      : "lundi";
+                return `Pour un repas livré mercredi : commandes et modifications jusqu'à ${when} ${time}. Ensuite le jour est clos.`;
+              })()}
+              {draft.cutoff_day_offset === "0" &&
+                " Attention : les employés pourront commander le jour même."}
             </p>
             <label className="flex items-center gap-3 text-sm">
               <Switch

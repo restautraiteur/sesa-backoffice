@@ -26,6 +26,7 @@ import {
 } from "@/features/admin/simulation/components/production-dialog";
 import { ConfirmDialog, ProductThumb } from "@/features/admin/components/admin-ui";
 import { cn } from "@core/lib/utils";
+import { CLIENT } from "@/config/client";
 
 export function DayDialog({
   day,
@@ -89,7 +90,9 @@ export function DayDialog({
                 {day.is_open ? "Ouvert aux commandes" : "Fermé ce jour-là"}
               </label>
               <div className="flex items-center gap-2 text-sm">
-                <span className="text-muted-foreground">Commandes de</span>
+                <span className="text-muted-foreground">
+                  {CLIENT.partners ? "Particuliers : commandes de" : "Commandes de"}
+                </span>
                 <Input
                   type="time"
                   className="h-9 w-28 bg-card"
@@ -107,6 +110,13 @@ export function DayDialog({
                 />
               </div>
             </div>
+            {CLIENT.partners && (
+              <p className="rounded-lg bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+                <span className="font-semibold text-foreground">Entreprises partenaires :</span> ces
+                horaires ne s'appliquent pas. Leurs employés commandent jusqu'à l'heure limite
+                réglée dans chaque entreprise (par défaut la veille à 7 h), jamais le jour même.
+              </p>
+            )}
 
             <section className="space-y-2">
               <h3 className="font-semibold">Au menu ce jour</h3>
