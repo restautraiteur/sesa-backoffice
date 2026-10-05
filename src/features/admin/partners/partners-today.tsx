@@ -2,8 +2,10 @@ import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, Building2 } from "lucide-react";
 import {
+  invoiceRemaining,
   invoicesQuery,
   isOverdue,
+  paymentsQuery,
   monthBounds,
   partnerLinesQuery,
   partnersQuery,
@@ -17,6 +19,10 @@ export function PartnersTodayPanel({ day }: { day: string }) {
   const { from, to } = monthBounds(day.slice(0, 7));
   const { data: monthLines = [] } = useQuery(partnerLinesQuery(from, to));
   const { data: invoices = [] } = useQuery(invoicesQuery());
+  const { data: payments = [] } = useQuery(paymentsQuery());
+  const received = payments
+    .filter((p) => p.paid_on.startsWith(day.slice(0, 7)))
+    .reduce((s, p) => s + p.amount, 0);
   const byPartner = partners
     .map((p) => ({
       partner: p,
@@ -24,7 +30,7 @@ export function PartnersTodayPanel({ day }: { day: string }) {
     }))
     .filter((r) => r.meals > 0)
     .sort((a, b) => b.meals - a.meals);
-  const owed = invoices.filter((i) => i.status === "envoyee");
+  const owed = invoices.filter((i) => i.status !== "payee");
   const overdue = owed.filter((i) => isOverdue(i, day));
   const monthRevenue = monthLines.reduce((s, l) => s + l.amount, 0);
 
@@ -49,10 +55,13 @@ export function PartnersTodayPanel({ day }: { day: string }) {
         <div className="rounded-lg bg-muted/50 p-3">
           <p className="text-xs text-muted-foreground">Chiffre d'affaires du mois</p>
           <p className="text-xl font-bold">{formatPrice(monthRevenue)}</p>
+          <p className="text-xs text-emerald-700">encaissé : {formatPrice(received)}</p>
         </div>
         <div className="rounded-lg bg-muted/50 p-3">
           <p className="text-xs text-muted-foreground">À encaisser</p>
-          <p className="text-xl font-bold">{formatPrice(owed.reduce((s, i) => s + i.total, 0))}</p>
+          <p className="text-xl font-bold">
+            {formatPrice(owed.reduce((s, i) => s + invoiceRemaining(i), 0))}
+          </p>
           {overdue.length > 0 && (
             <p className="text-xs font-semibold text-rose-600">
               {overdue.length} facture{overdue.length > 1 ? "s" : ""} en retard

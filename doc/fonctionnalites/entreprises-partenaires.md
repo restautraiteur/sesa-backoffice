@@ -34,6 +34,11 @@ sont regroupés en une **facture** (ex. 22 bons = 1 facture).
 - **Fiche entreprise · situation financière** : ce qu'elle doit (factures envoyées), dont en retard,
   non facturé du mois en cours, **délai de paiement** (jours, réglable) et **échéance** de chaque
   facture, dernier paiement.
+- **Paiements reçus** (« Encaisser » sur une facture, ou « Enregistrer un paiement » dans la fiche) :
+  montant, date de réception, mode (virement, chèque, Wave, Orange Money, espèces), référence. En une
+  ou plusieurs fois ; la facture passe à « partielle » puis « payée » automatiquement (table
+  `partner_payments`, migration `20261005190000`). **CA encaissé** du mois dans les KPI, la fiche
+  entreprise et le tableau de bord, à côté du CA facturé et du reste à encaisser.
 - **Étiquettes à découper** : une étiquette par commande (entreprise, employé, téléphone, n° de
   commande, plats), regroupées par entreprise, une page par entreprise — depuis Bons de commande ou
   Commandes (filtre « Client » : particuliers / une entreprise).

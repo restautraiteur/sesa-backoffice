@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Banknote,
   Building2,
   CheckCircle2,
   Download,
@@ -36,7 +37,10 @@ import {
   cutoffLabel,
   deliveryNotesQuery,
   dueDateFrom,
+  invoiceRemaining,
   isOverdue,
+  paymentsQuery,
+  PAYMENT_METHODS,
   employeesQuery,
   formatHour,
   invoicesQuery,
@@ -57,6 +61,7 @@ import {
   type LabelGroup,
 } from "@/features/admin/partners/print";
 import { downloadFile } from "@/features/admin/orders/export-orders";
+import { PaymentDialog } from "@/features/admin/partners/payment-dialog";
 import { Checkbox } from "@ui/components/ui/checkbox";
 import {
   downloadEmployeesTemplate,
@@ -133,6 +138,10 @@ function KpiTab({ partners }: { partners: Partner[] }) {
   const { data: prevLines = [] } = useQuery(partnerLinesQuery(prevBounds.from, prevBounds.to));
   const { data: employees = [] } = useQuery(employeesQuery());
   const { data: invoices = [] } = useQuery(invoicesQuery());
+  const { data: payments = [] } = useQuery(paymentsQuery());
+  const received = payments
+    .filter((p) => p.paid_on.startsWith(month))
+    .reduce((s, p) => s + p.amount, 0);
 
   const meals = lines.reduce((s, l) => s + l.quantity, 0);
   const revenue = lines.reduce((s, l) => s + l.amount, 0);
@@ -140,8 +149,8 @@ function KpiTab({ partners }: { partners: Partner[] }) {
   const activeEmployees = employees.filter((e) => e.active);
   const orderingPhones = new Set(lines.map((l) => `${l.partner_id}:${l.phone}`));
   const days = new Set(lines.map((l) => l.day_date)).size;
-  const unpaid = invoices.filter((i) => i.status === "envoyee");
-  const unpaidTotal = unpaid.reduce((s, i) => s + i.total, 0);
+  const unpaid = invoices.filter((i) => i.status !== "payee");
+  const unpaidTotal = unpaid.reduce((s, i) => s + invoiceRemaining(i), 0);
 
   const ranking = partners
     .map((p) => {
@@ -196,7 +205,7 @@ function KpiTab({ partners }: { partners: Partner[] }) {
           onChange={(e) => setMonth(e.target.value || todayISO().slice(0, 7))}
         />
       </div>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <Kpi
           label="Repas livrés aux entreprises"
           value={String(meals)}
@@ -209,6 +218,12 @@ function KpiTab({ partners }: { partners: Partner[] }) {
           tone={trend !== null && trend < 0 ? "bad" : "good"}
         />
         <Kpi
+          label="Encaissé ce mois-ci"
+          value={formatPrice(received)}
+          hint="Argent réellement reçu des entreprises"
+          tone="good"
+        />
+        <Kpi
           label="Employés qui commandent"
           value={`${orderingPhones.size} / ${activeEmployees.length}`}
           hint={`${activeEmployees.length ? Math.round((orderingPhones.size / activeEmployees.length) * 100) : 0} % des employés enrôlés`}
@@ -216,7 +231,7 @@ function KpiTab({ partners }: { partners: Partner[] }) {
         <Kpi
           label="Factures à encaisser"
           value={formatPrice(unpaidTotal)}
-          hint={`${unpaid.length} facture${unpaid.length > 1 ? "s" : ""} envoyée${unpaid.length > 1 ? "s" : ""}, non payée${unpaid.length > 1 ? "s" : ""}`}
+          hint={`${unpaid.length} facture${unpaid.length > 1 ? "s" : ""} non soldée${unpaid.length > 1 ? "s" : ""}`}
           tone={unpaid.length ? "warn" : "good"}
         />
       </div>
@@ -720,28 +735,39 @@ function PartnerFinance({ partner }: { partner: Partner }) {
   const { from, to } = monthBounds(month);
   const { data: lines = [] } = useQuery(partnerLinesQuery(from, to));
   const { data: invoices = [] } = useQuery(invoicesQuery());
+  const { data: payments = [] } = useQuery(paymentsQuery());
+  const [paying, setPaying] = useState(false);
   const mine = invoices.filter((i) => i.partner_id === partner.id);
+  const myPayments = payments.filter((p) => p.partner_id === partner.id);
+  const receivedThisMonth = myPayments
+    .filter((p) => p.paid_on.startsWith(month))
+    .reduce((s, p) => s + p.amount, 0);
   const unbilled = mine.some((i) => i.month === from)
     ? 0
     : lines.filter((l) => l.partner_id === partner.id).reduce((s, l) => s + l.amount, 0);
   const open = mine
-    .filter((i) => i.status === "envoyee")
+    .filter((i) => i.status !== "payee")
     .sort((a, b) => (a.due_date ?? "").localeCompare(b.due_date ?? ""));
-  const owed = open.reduce((s, i) => s + i.total, 0);
+  const owed = open.reduce((s, i) => s + invoiceRemaining(i), 0);
   const overdue = open.filter((i) => isOverdue(i, today));
   const lastPaid = mine
     .filter((i) => i.status === "payee" && i.paid_at)
     .sort((a, b) => (b.paid_at ?? "").localeCompare(a.paid_at ?? ""))[0];
   return (
     <div className="rounded-xl border border-border p-4">
-      <h3 className="font-medium">Situation financière</h3>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="font-medium">Situation financière</h3>
+        <Button size="sm" onClick={() => setPaying(true)}>
+          <Banknote className="size-4" /> Enregistrer un paiement
+        </Button>
+      </div>
       <div className="mt-3 grid gap-3 sm:grid-cols-3">
         <div className="rounded-lg bg-muted/50 p-3">
           <p className="text-xs text-muted-foreground">Doit (factures envoyées)</p>
           <p className="text-lg font-bold">{formatPrice(owed)}</p>
           {overdue.length > 0 && (
             <p className="text-xs font-semibold text-rose-600">
-              dont {formatPrice(overdue.reduce((s, i) => s + i.total, 0))} en retard
+              dont {formatPrice(overdue.reduce((s, i) => s + invoiceRemaining(i), 0))} en retard
             </p>
           )}
         </div>
@@ -751,8 +777,11 @@ function PartnerFinance({ partner }: { partner: Partner }) {
           <p className="text-xs text-muted-foreground">{monthLabel(month)}</p>
         </div>
         <div className="rounded-lg bg-muted/50 p-3">
-          <p className="text-xs text-muted-foreground">Délai de paiement</p>
-          <p className="text-lg font-bold">{partner.payment_terms_days} jours</p>
+          <p className="text-xs text-muted-foreground">Encaissé ce mois-ci</p>
+          <p className="text-lg font-bold text-emerald-700">{formatPrice(receivedThisMonth)}</p>
+          <p className="text-xs text-muted-foreground">
+            Délai de paiement : {partner.payment_terms_days} jours
+          </p>
           <p className="text-xs text-muted-foreground">
             {lastPaid?.paid_at
               ? `Dernier paiement le ${new Date(lastPaid.paid_at).toLocaleDateString("fr-FR")}`
@@ -769,7 +798,11 @@ function PartnerFinance({ partner }: { partner: Partner }) {
                 <span className="text-muted-foreground"> · {monthLabel(i.month.slice(0, 7))}</span>
               </span>
               <span className="flex items-center gap-2">
-                <span className="font-semibold">{formatPrice(i.total)}</span>
+                <span className="font-semibold">
+                  {i.amount_paid > 0
+                    ? `${formatPrice(invoiceRemaining(i))} restants sur ${formatPrice(i.total)}`
+                    : formatPrice(i.total)}
+                </span>
                 <span
                   className={cn(
                     "rounded-full px-2 py-0.5 text-xs font-semibold",
@@ -787,6 +820,37 @@ function PartnerFinance({ partner }: { partner: Partner }) {
           ))}
         </ul>
       )}
+      {myPayments.length > 0 && (
+        <div className="mt-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Derniers paiements reçus
+          </p>
+          <ul className="mt-1 divide-y divide-border text-sm">
+            {myPayments.slice(0, 6).map((p) => (
+              <li key={p.id} className="flex flex-wrap justify-between gap-2 py-1.5">
+                <span>
+                  {new Date(`${p.paid_on}T00:00:00Z`).toLocaleDateString("fr-FR", {
+                    timeZone: "UTC",
+                  })}{" "}
+                  · {PAYMENT_METHODS[p.method]}
+                  {p.reference ? ` · ${p.reference}` : ""}
+                  <span className="text-muted-foreground">
+                    {" "}
+                    · {mine.find((i) => i.id === p.invoice_id)?.reference ?? "sans facture"}
+                  </span>
+                </span>
+                <span className="font-semibold text-emerald-700">+{formatPrice(p.amount)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <PaymentDialog
+        open={paying}
+        partner={partner}
+        invoices={open}
+        onClose={() => setPaying(false)}
+      />
     </div>
   );
 }
@@ -1521,20 +1585,7 @@ function InvoicesTab({ partners }: { partners: Partner[] }) {
     },
     onError: (error: Error) => toast.error(error.message),
   });
-  const markPaid = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await db
-        .from("partner_invoices")
-        .update({ status: "payee", paid_at: new Date().toISOString() })
-        .eq("id", id);
-      if (error) throw new Error(error.message);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["partner_invoices"] });
-      toast.success("Facture marquée payée");
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
+  const [paying, setPaying] = useState<{ partner: Partner; invoiceId: string } | null>(null);
 
   return (
     <section className="space-y-4">
@@ -1591,12 +1642,19 @@ function InvoicesTab({ partners }: { partners: Partner[] }) {
                 "rounded-full px-2.5 py-0.5 text-xs font-semibold",
                 !invoice && "bg-muted text-muted-foreground",
                 invoice?.status === "envoyee" && "bg-amber-100 text-amber-800",
+                invoice?.status === "partielle" && "bg-sky-100 text-sky-800",
                 invoice?.status === "payee" && "bg-emerald-100 text-emerald-800",
               )}
             >
-              {!invoice ? "À facturer" : invoice.status === "payee" ? "Payée" : "Envoyée"}
+              {!invoice
+                ? "À facturer"
+                : invoice.status === "payee"
+                  ? "Payée"
+                  : invoice.status === "partielle"
+                    ? `Réglée ${formatPrice(invoice.amount_paid)} · reste ${formatPrice(invoiceRemaining(invoice))}`
+                    : "Envoyée"}
             </span>
-            {invoice?.status === "envoyee" && invoice.due_date && (
+            {invoice && invoice.status !== "payee" && invoice.due_date && (
               <span
                 className={cn(
                   "text-xs font-medium",
@@ -1636,15 +1694,24 @@ function InvoicesTab({ partners }: { partners: Partner[] }) {
                   {invoice ? "Mettre à jour" : "Marquer envoyée"}
                 </Button>
               )}
-              {invoice?.status === "envoyee" && (
-                <Button size="sm" onClick={() => markPaid.mutate(invoice.id)}>
-                  <CheckCircle2 className="size-4" /> Payée
+              {invoice && invoice.status !== "payee" && (
+                <Button size="sm" onClick={() => setPaying({ partner, invoiceId: invoice.id })}>
+                  <Banknote className="size-4" /> Encaisser
                 </Button>
               )}
             </div>
           </article>
         );
       })}
+      <PaymentDialog
+        open={paying !== null}
+        partner={paying?.partner ?? null}
+        invoiceId={paying?.invoiceId}
+        invoices={invoices.filter(
+          (i) => i.partner_id === paying?.partner.id && i.status !== "payee",
+        )}
+        onClose={() => setPaying(null)}
+      />
     </section>
   );
 }

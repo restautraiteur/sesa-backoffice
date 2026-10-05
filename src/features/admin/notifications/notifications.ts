@@ -158,7 +158,7 @@ export function buildNotifications(
   }
   for (const invoice of partnerData?.invoices ?? []) {
     if (
-      invoice.status !== "envoyee" ||
+      invoice.status === "payee" ||
       now - new Date(invoice.sent_at).getTime() < INVOICE_OVERDUE_MS
     )
       continue;

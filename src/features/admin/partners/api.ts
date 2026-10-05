@@ -44,7 +44,9 @@ export type PartnerInvoice = {
   month: string;
   reference: string;
   total: number;
-  status: "envoyee" | "payee";
+  status: "envoyee" | "partielle" | "payee";
+  /** Somme des paiements rattachés à la facture. */
+  amount_paid: number;
   sent_at: string;
   paid_at: string | null;
   due_date: string | null;
@@ -174,8 +176,44 @@ export function monthLabel(month: string) {
 
 /** Facture envoyée, non payée, dont l'échéance est passée. */
 export function isOverdue(invoice: Pick<PartnerInvoice, "status" | "due_date">, today: string) {
-  return invoice.status === "envoyee" && !!invoice.due_date && invoice.due_date < today;
+  return invoice.status !== "payee" && !!invoice.due_date && invoice.due_date < today;
 }
+
+/** Reste à payer sur une facture. */
+export function invoiceRemaining(invoice: Pick<PartnerInvoice, "total" | "amount_paid">) {
+  return Math.max(0, invoice.total - invoice.amount_paid);
+}
+
+/** Paiement reçu d'une entreprise (en une ou plusieurs fois, rattaché ou non à une facture). */
+export type PartnerPayment = {
+  id: string;
+  partner_id: string;
+  invoice_id: string | null;
+  amount: number;
+  paid_on: string;
+  method: "virement" | "cheque" | "wave" | "orange_money" | "especes" | "autre";
+  reference: string | null;
+  note: string | null;
+  created_at: string;
+};
+
+export const PAYMENT_METHODS: Record<PartnerPayment["method"], string> = {
+  virement: "Virement",
+  cheque: "Chèque",
+  wave: "Wave",
+  orange_money: "Orange Money",
+  especes: "Espèces",
+  autre: "Autre",
+};
+
+export const paymentsQuery = () =>
+  queryOptions({
+    queryKey: ["partner_payments"],
+    queryFn: () =>
+      run<PartnerPayment[]>(
+        db.from("partner_payments").select("*").order("paid_on", { ascending: false }),
+      ),
+  });
 
 /** Échéance d'une facture envoyée aujourd'hui. */
 export function dueDateFrom(today: string, days: number) {
