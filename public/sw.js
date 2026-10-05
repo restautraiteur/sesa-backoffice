@@ -15,8 +15,8 @@ self.addEventListener("push", (event) => {
       body: data.body || "",
       tag: data.tag,
       renotify: Boolean(data.tag),
-      icon: "/favicon.png",
-      badge: "/favicon.png",
+      icon: "/sesa-favicon.png",
+      badge: "/sesa-favicon.png",
       data: { url: data.url || "/admin" },
     }),
   );
