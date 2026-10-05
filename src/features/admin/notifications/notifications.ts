@@ -2,14 +2,18 @@ import type { Order } from "@/features/admin/orders/api";
 import type { MenuRow } from "@core/domain/menu/api";
 
 /** Familles de notifications, utilisées pour filtrer le panneau. */
-export type NotificationGroup = "precommandes" | "commandes" | "paiements" | "stocks";
+export type NotificationGroup =
+  "precommandes" | "commandes" | "paiements" | "stocks" | "entreprises";
 
 export type NotificationKind =
   | "nouvelle_precommande"
   | "nouvelle_commande"
   | "acompte_a_verifier"
   | "paiement_echoue"
-  | "plat_epuise";
+  | "plat_epuise"
+  | "commande_entreprise"
+  | "facture_impayee"
+  | "code_bloque";
 
 export type AdminNotification = {
   id: string;
@@ -32,6 +36,9 @@ export const NOTIFICATION_KINDS: Record<
   acompte_a_verifier: { label: "Acompte à vérifier", group: "paiements" },
   paiement_echoue: { label: "Paiement échoué", group: "paiements" },
   plat_epuise: { label: "Plat épuisé", group: "stocks" },
+  commande_entreprise: { label: "Commande entreprise", group: "entreprises" },
+  facture_impayee: { label: "Facture impayée", group: "entreprises" },
+  code_bloque: { label: "Code employé bloqué", group: "entreprises" },
 };
 
 export const NOTIFICATION_GROUPS: { value: NotificationGroup | "all"; label: string }[] = [
@@ -40,7 +47,31 @@ export const NOTIFICATION_GROUPS: { value: NotificationGroup | "all"; label: str
   { value: "commandes", label: "Commandes" },
   { value: "paiements", label: "Paiements" },
   { value: "stocks", label: "Stocks" },
+  { value: "entreprises", label: "Entreprises" },
 ];
+
+/** Données du module « Entreprises partenaires » (si activé). */
+export type PartnerNotificationData = {
+  partners: { id: string; name: string }[];
+  employees: {
+    id: string;
+    full_name: string;
+    partner_id: string;
+    pin_failures: number;
+    active: boolean;
+  }[];
+  invoices: {
+    id: string;
+    partner_id: string;
+    reference: string;
+    total: number;
+    status: string;
+    sent_at: string;
+  }[];
+};
+
+/** Une facture envoyée depuis plus de 30 jours sans être payée est signalée. */
+const INVOICE_OVERDUE_MS = 30 * 24 * 60 * 60 * 1000;
 
 /** Fenêtre affichée : les 7 derniers jours. */
 const WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
@@ -54,10 +85,24 @@ export function buildNotifications(
   menu: MenuRow[],
   today: string,
   now = Date.now(),
+  partnerData?: PartnerNotificationData,
 ): AdminNotification[] {
   const list: AdminNotification[] = [];
+  const partnerName = new Map((partnerData?.partners ?? []).map((p) => [p.id, p.name]));
   for (const order of orders) {
     if (now - new Date(order.created_at).getTime() > WINDOW_MS) continue;
+    if (order.partner_id) {
+      list.push({
+        id: `commande_entreprise:${order.id}`,
+        kind: "commande_entreprise",
+        group: "entreprises",
+        title: order.first_name,
+        detail: `${partnerName.get(order.partner_id) ?? order.last_name} · ${order.reference}`,
+        at: order.created_at,
+        reference: order.reference,
+      });
+      continue;
+    }
     const client = `${order.first_name} ${order.last_name}`.trim();
     const kind: NotificationKind =
       order.order_type === "precommande" ? "nouvelle_precommande" : "nouvelle_commande";
@@ -96,6 +141,32 @@ export function buildNotifications(
       title: row.name,
       detail: "Toutes les portions prévues sont réservées",
       at: `${row.day_date}T00:00:00Z`,
+    });
+  }
+  for (const invoice of partnerData?.invoices ?? []) {
+    if (
+      invoice.status !== "envoyee" ||
+      now - new Date(invoice.sent_at).getTime() < INVOICE_OVERDUE_MS
+    )
+      continue;
+    list.push({
+      id: `facture_impayee:${invoice.id}`,
+      kind: "facture_impayee",
+      group: "entreprises",
+      title: partnerName.get(invoice.partner_id) ?? "Entreprise",
+      detail: `${invoice.reference} envoyée il y a plus de 30 jours`,
+      at: invoice.sent_at,
+    });
+  }
+  for (const employee of partnerData?.employees ?? []) {
+    if (!employee.active || employee.pin_failures < 5) continue;
+    list.push({
+      id: `code_bloque:${employee.id}:${employee.pin_failures}`,
+      kind: "code_bloque",
+      group: "entreprises",
+      title: employee.full_name,
+      detail: `${partnerName.get(employee.partner_id) ?? ""} · code bloqué après 5 essais`,
+      at: new Date(now).toISOString(),
     });
   }
   return list.sort((a, b) => b.at.localeCompare(a.at));

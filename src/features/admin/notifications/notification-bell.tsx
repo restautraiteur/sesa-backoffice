@@ -1,6 +1,19 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Bell, CalendarClock, CircleX, ShoppingBag, Wallet } from "lucide-react";
+import {
+  AlertTriangle,
+  Bell,
+  Building2,
+  CalendarClock,
+  CircleX,
+  FileWarning,
+  KeyRound,
+  ShoppingBag,
+  Wallet,
+} from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { CLIENT } from "@/config/client";
+import { employeesQuery, invoicesQuery, partnersQuery } from "@/features/admin/partners/api";
 import { Popover, PopoverContent, PopoverTrigger } from "@ui/components/ui/popover";
 import type { Order } from "@/features/admin/orders/api";
 import type { MenuRow } from "@core/domain/menu/api";
@@ -25,6 +38,9 @@ const KIND_STYLE: Record<NotificationKind, { icon: typeof Bell; className: strin
   acompte_a_verifier: { icon: Wallet, className: "bg-amber-50 text-amber-700" },
   paiement_echoue: { icon: CircleX, className: "bg-rose-50 text-rose-700" },
   plat_epuise: { icon: AlertTriangle, className: "bg-orange-50 text-orange-700" },
+  commande_entreprise: { icon: Building2, className: "bg-indigo-50 text-indigo-700" },
+  facture_impayee: { icon: FileWarning, className: "bg-amber-50 text-amber-700" },
+  code_bloque: { icon: KeyRound, className: "bg-rose-50 text-rose-700" },
 };
 
 export function NotificationBell({ orders, menu }: { orders: Order[]; menu: MenuRow[] }) {
@@ -41,9 +57,19 @@ export function NotificationBell({ orders, menu }: { orders: Order[]; menu: Menu
     return () => clearInterval(timer);
   }, []);
 
+  const { data: partners = [] } = useQuery({ ...partnersQuery(), enabled: CLIENT.partners });
+  const { data: employees = [] } = useQuery({ ...employeesQuery(), enabled: CLIENT.partners });
+  const { data: invoices = [] } = useQuery({ ...invoicesQuery(), enabled: CLIENT.partners });
   const notifications = useMemo(
-    () => buildNotifications(orders, menu, todayISO(), now.getTime()),
-    [orders, menu, now],
+    () =>
+      buildNotifications(
+        orders,
+        menu,
+        todayISO(),
+        now.getTime(),
+        CLIENT.partners ? { partners, employees, invoices } : undefined,
+      ),
+    [orders, menu, now, partners, employees, invoices],
   );
   const unread = notifications.filter((n) => !seen.has(n.id));
   const visible = group === "all" ? notifications : notifications.filter((n) => n.group === group);
@@ -63,6 +89,8 @@ export function NotificationBell({ orders, menu }: { orders: Order[]; menu: Menu
     setOpen(false);
     if (notification.reference) {
       navigate({ to: "/admin/orders", search: { q: notification.reference } });
+    } else if (notification.group === "entreprises") {
+      navigate({ to: "/admin/entreprises" });
     } else {
       navigate({ to: "/admin/weeks" });
     }
@@ -111,29 +139,31 @@ export function NotificationBell({ orders, menu }: { orders: Order[]; menu: Menu
           aria-label="Type de notification"
           className="flex flex-wrap gap-1.5 border-b border-border px-4 py-2.5"
         >
-          {NOTIFICATION_GROUPS.map((option) => {
-            const count =
-              option.value === "all"
-                ? unread.length
-                : unread.filter((n) => n.group === option.value).length;
-            return (
-              <button
-                key={option.value}
-                type="button"
-                aria-pressed={group === option.value}
-                onClick={() => setGroup(option.value)}
-                className={cn(
-                  "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-medium transition-colors",
-                  group === option.value
-                    ? "bg-foreground text-background"
-                    : "bg-muted text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {option.label}
-                {count > 0 && <span className="tabular-nums opacity-75">{count}</span>}
-              </button>
-            );
-          })}
+          {NOTIFICATION_GROUPS.filter((g) => CLIENT.partners || g.value !== "entreprises").map(
+            (option) => {
+              const count =
+                option.value === "all"
+                  ? unread.length
+                  : unread.filter((n) => n.group === option.value).length;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  aria-pressed={group === option.value}
+                  onClick={() => setGroup(option.value)}
+                  className={cn(
+                    "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-medium transition-colors",
+                    group === option.value
+                      ? "bg-foreground text-background"
+                      : "bg-muted text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {option.label}
+                  {count > 0 && <span className="tabular-nums opacity-75">{count}</span>}
+                </button>
+              );
+            },
+          )}
         </div>
         <ul className="max-h-[min(26rem,60vh)] divide-y divide-border overflow-y-auto">
           {visible.length === 0 ? (

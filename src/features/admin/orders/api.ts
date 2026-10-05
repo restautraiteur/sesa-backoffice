@@ -21,6 +21,8 @@ export type Order = {
   /** Commande d'un abonné : montant pris en charge par l'abonnement. */
   subscription_id: string | null;
   subscription_discount: number;
+  /** Commande d'un employé d'entreprise partenaire (facturée à l'entreprise). */
+  partner_id: string | null;
   created_at: string;
 };
 

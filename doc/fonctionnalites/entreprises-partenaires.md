@@ -18,11 +18,18 @@ sont regroupés en une **facture** (ex. 22 bons = 1 facture).
 | Identification | **Pas de compte ni de connexion** : au moment de valider sa commande, l'employé choisit **son entreprise**, saisit **son téléphone et son code** (4 chiffres, envoyé par SMS / WhatsApp à l'enrôlement). 5 essais faux → bloqué. |
 | Jour même | Interdit : l'employé commande pour les jours suivants seulement (avant l'heure limite). |
 
-## Côté gérant
-- **Entreprises partenaires** : nom, contact (nom, téléphone, email), adresse et heure de livraison,
-  heure limite de commande, actif ou non.
-- **Employés** par entreprise : nom, **téléphone**, **email** (obligatoires), code, actif / désactivé.
-  Ajout un par un ou **import Excel / CSV**. Envoi du code par SMS ou WhatsApp.
+## Côté gérant (page « Entreprises »)
+- **Tableau de bord** (KPI du mois) : repas livrés aux entreprises, chiffre d'affaires (et évolution
+  vs mois précédent), employés qui commandent / enrôlés, factures à encaisser ; **top entreprises**
+  (chiffre d'affaires, repas, taux de participation), employés les plus fidèles, plats préférés.
+- **Entreprises partenaires** : **logo**, nom, contact (nom, téléphone, email), adresse et heure de
+  livraison, heure limite de commande, actif ou non.
+- **Employés** par entreprise (après création) : nom, **téléphone**, **email**, code, actif /
+  désactivé. Ajout un par un ou **import** : fichier **Excel (.xlsx)** ou **CSV**, **lien Google
+  Sheets** partagé, ou copier-coller. **Modèle à télécharger** (Nom ; Prénom ; Téléphone ; Email) à
+  envoyer à l'entreprise. Envoi du code par SMS ou WhatsApp.
+- **Notifications** (cloche) : nouvelle commande d'entreprise, facture envoyée et impayée depuis plus
+  de 30 jours, code employé bloqué (5 essais faux).
 - **Bons de commande du jour** : un par entreprise — employés, plats, quantités, montant total ; PDF à
   imprimer / télécharger, case « livré et signé ».
 - **Production** : total par plat et par entreprise (cuisine et livraison).

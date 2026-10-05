@@ -16,7 +16,7 @@ const NOTE_CSS = `
 
 function partnerBlock(partner: Partner) {
   return `<div class="summary">
-    <div><span class="muted">Entreprise</span><b>${esc(partner.name)}</b>${esc(partner.delivery_address ?? "")}</div>
+    <div>${partner.logo_url ? `<img src="${esc(partner.logo_url)}" alt="" style="height:36px;max-width:120px;object-fit:contain;float:right" />` : ""}<span class="muted">Entreprise</span><b>${esc(partner.name)}</b>${esc(partner.delivery_address ?? "")}</div>
     <div><span class="muted">Contact</span><b>${esc(partner.contact_name ?? "—")}</b>${esc(
       [partner.contact_phone, partner.contact_email].filter(Boolean).join(" · "),
     )}</div>

@@ -13,6 +13,7 @@ export type Partner = {
   cutoff_day_offset: number;
   active: boolean;
   notes: string | null;
+  logo_url: string | null;
 };
 
 export type PartnerEmployee = {
