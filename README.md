@@ -42,7 +42,7 @@ le dépôt jumeau.
 | `SUPABASE_SERVICE_ROLE_KEY` | Clé serveur (secrète) |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `PUSH_WEBHOOK_SECRET` | Notifications push du gérant (`node scripts/generate-vapid-keys.mjs`) |
 | `VITE_SITE_URL` | Adresse du site client (lien « Voir le site client ») |
-| `RESEND_API_KEY`, `INVOICE_FROM_EMAIL` | Envoi des factures par email aux entreprises (compte resend.com ; ex. `SESA Catering <factures@domaine.com>`) |
+| `BREVO_API_KEY` (ou `RESEND_API_KEY`), `INVOICE_FROM_EMAIL` | Envoi des factures par email aux entreprises (compte brevo.com ; ex. `SESA Catering <factures@domaine.com>`) |
 | `CRON_SECRET` | Protège la tâche quotidienne `/api/cron/invoices` (vercel.json) qui envoie les factures automatiques |
 
 ## Base de données

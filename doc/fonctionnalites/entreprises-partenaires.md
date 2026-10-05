@@ -73,7 +73,7 @@ fonction `place_partner_order` (contrôle de l'heure limite et de l'employé, r�
 - Tâche quotidienne Vercel (`vercel.json` → `/api/cron/invoices`, 7 h) protégée par `CRON_SECRET`.
 - Onglet Facturation : période de chaque entreprise, bouton **« Envoyer par email »** / « Renvoyer »,
   date et destinataire du dernier envoi.
-- Emails via **Resend** : variables `RESEND_API_KEY` et `INVOICE_FROM_EMAIL` sur Vercel.
+- Emails via **Brevo** (`BREVO_API_KEY`) ou Resend (`RESEND_API_KEY`), et `INVOICE_FROM_EMAIL`, sur Vercel.
 
 ## Autres ajouts du même jour
 - **Catalogue** : types de cuisine (sénégalaise, marocaine…) gérés dans « Types de cuisine », filtre,

@@ -1,8 +1,8 @@
 import { CLIENT } from "@/config/client";
 
 /**
- * Factures des entreprises partenaires envoyées par email (Resend) au responsable de l'entreprise.
- * Variables Vercel : RESEND_API_KEY, INVOICE_FROM_EMAIL (ex. « SESA Catering <factures@sesa-catering.com> »).
+ * Factures des entreprises partenaires envoyées par email au responsable de l'entreprise.
+ * Variables Vercel : BREVO_API_KEY (ou RESEND_API_KEY) et INVOICE_FROM_EMAIL.
  */
 
 type Line = {
@@ -130,25 +130,53 @@ function invoiceCsv(lines: Line[]) {
   return "﻿" + rows.map((r) => r.map(q).join(";")).join("\n");
 }
 
+/** « Nom <email> » → { name, email } (format attendu par Brevo). */
+function parseSender(value: string) {
+  const m = value.match(/^\s*(.*?)\s*<([^>]+)>\s*$/);
+  return m ? { name: m[1] || undefined, email: m[2]! } : { email: value.trim() };
+}
+
+/**
+ * Envoi via Brevo (BREVO_API_KEY) ou, à défaut, Resend (RESEND_API_KEY).
+ * Expéditeur : INVOICE_FROM_EMAIL, ex. « SESA Catering <factures@sesa-catering.com> ».
+ */
 async function sendEmail(to: string, subject: string, html: string, csv: string, filename: string) {
-  const key = process.env["RESEND_API_KEY"];
   const from = process.env["INVOICE_FROM_EMAIL"];
-  if (!key || !from) {
+  const brevo = process.env["BREVO_API_KEY"];
+  const resend = process.env["RESEND_API_KEY"];
+  if (!from || (!brevo && !resend)) {
     throw new Error(
-      "Envoi d'emails non configuré (RESEND_API_KEY et INVOICE_FROM_EMAIL sur Vercel).",
+      "Envoi d'emails non configuré : ajoutez BREVO_API_KEY (ou RESEND_API_KEY) et INVOICE_FROM_EMAIL sur Vercel.",
     );
   }
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      from,
-      to: [to],
-      subject,
-      html,
-      attachments: [{ filename, content: Buffer.from(csv, "utf-8").toString("base64") }],
-    }),
-  });
+  const content = Buffer.from(csv, "utf-8").toString("base64");
+  const res = brevo
+    ? await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: {
+          "api-key": brevo,
+          "Content-Type": "application/json",
+          accept: "application/json",
+        },
+        body: JSON.stringify({
+          sender: parseSender(from),
+          to: [{ email: to }],
+          subject,
+          htmlContent: html,
+          attachment: [{ name: filename, content }],
+        }),
+      })
+    : await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${resend}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          from,
+          to: [to],
+          subject,
+          html,
+          attachments: [{ filename, content }],
+        }),
+      });
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
     throw new Error(`L'email n'a pas pu partir (${res.status}). ${detail.slice(0, 200)}`);
