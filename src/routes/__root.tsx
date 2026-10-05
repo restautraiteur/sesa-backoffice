@@ -43,6 +43,26 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
   useEffect(() => {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
+  // Après une nouvelle mise en ligne, l'onglet resté ouvert cherche des fichiers de l'ancienne version
+  // qui n'existent plus : on recharge une fois la page pour prendre la version mise à jour.
+  useEffect(() => {
+    const message = error instanceof Error ? error.message : String(error);
+    if (
+      !/dynamically imported module|Importing a module script failed|Failed to fetch|ChunkLoadError|Unable to preload/i.test(
+        message,
+      )
+    )
+      return;
+    try {
+      // Une seule fois par minute, pour ne jamais boucler si l'erreur persiste.
+      const last = Number(sessionStorage.getItem("reloaded-after-deploy") ?? 0);
+      if (Date.now() - last < 60_000) return;
+      sessionStorage.setItem("reloaded-after-deploy", String(Date.now()));
+    } catch {
+      /* stockage indisponible : on recharge quand même une fois */
+    }
+    window.location.reload();
+  }, [error]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
