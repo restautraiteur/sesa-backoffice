@@ -46,8 +46,8 @@ import { ProductionDialog } from "@/features/admin/simulation/components/product
 
 const CHART_DAYS = 7;
 // Les attributs SVG de recharts ne résolvent pas les variables CSS : valeurs du thème gérant (styles.css).
-const BRAND = "#6b4428";
-const BRAND_CHART = "#9a5b2e";
+const BRAND = "#1f4e8c";
+const BRAND_CHART = "#2a8fd6";
 const GRID = "#e3e6eb";
 const MUTED = "#5f6b7a";
 

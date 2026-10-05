@@ -305,7 +305,7 @@ const A4_TICKET_CSS = `
   .phone { font-size: 15px; font-weight: 600; }
   .addr { font-size: 11px; }
   .note { margin-top: 1mm; font-size: 10px; font-style: italic; }
-  .day { margin-top: 2mm; font-size: 10px; font-weight: 700; color: #6b4428; }
+  .day { margin-top: 2mm; font-size: 10px; font-weight: 700; color: #1f4e8c; }
   ul { margin: 1mm 0 0; padding: 0; list-style: none; font-size: 11px; flex: 1; }
   footer { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #e3e6eb;
     padding-top: 1.5mm; font-weight: 700; font-size: 12px; }

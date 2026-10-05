@@ -60,44 +60,44 @@
 
 :root {
   --radius: 0.875rem;
-  --background: oklch(0.972 0.014 84);
-  --foreground: oklch(0.26 0.03 55);
+  --background: oklch(0.982 0.006 250);
+  --foreground: oklch(0.24 0.035 258);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.26 0.03 55);
+  --card-foreground: oklch(0.24 0.035 258);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.26 0.03 55);
-  /* Marron du logo */
-  --primary: oklch(0.38 0.075 52);
-  --primary-foreground: oklch(0.98 0.012 84);
-  /* Marron clair */
-  --secondary: oklch(0.9 0.03 75);
-  --secondary-foreground: oklch(0.32 0.06 52);
-  --muted: oklch(0.94 0.02 80);
-  --muted-foreground: oklch(0.5 0.03 60);
-  /* Terracotta */
-  --accent: oklch(0.62 0.14 42);
-  --accent-foreground: oklch(0.985 0.01 84);
+  --popover-foreground: oklch(0.24 0.035 258);
+  /* Bleu marine du logo SESA */
+  --primary: oklch(0.42 0.12 257);
+  --primary-foreground: oklch(0.985 0.005 250);
+  /* Bleu clair */
+  --secondary: oklch(0.93 0.03 245);
+  --secondary-foreground: oklch(0.32 0.09 257);
+  --muted: oklch(0.955 0.012 250);
+  --muted-foreground: oklch(0.5 0.03 255);
+  /* Bleu ciel du logo */
+  --accent: oklch(0.63 0.14 243);
+  --accent-foreground: oklch(0.99 0.005 250);
   --destructive: oklch(0.55 0.19 27);
   --destructive-foreground: oklch(0.985 0.01 84);
   --success: oklch(0.55 0.11 145);
   --success-foreground: oklch(0.985 0.01 84);
-  --cream: oklch(0.955 0.022 82);
-  --border: oklch(0.88 0.022 78);
-  --input: oklch(0.88 0.022 78);
-  --ring: oklch(0.62 0.14 42);
-  --chart-1: oklch(0.62 0.14 42);
-  --chart-2: oklch(0.38 0.075 52);
-  --chart-3: oklch(0.72 0.11 75);
+  --cream: oklch(0.965 0.014 245);
+  --border: oklch(0.9 0.015 250);
+  --input: oklch(0.9 0.015 250);
+  --ring: oklch(0.63 0.14 243);
+  --chart-1: oklch(0.63 0.14 243);
+  --chart-2: oklch(0.42 0.12 257);
+  --chart-3: oklch(0.7 0.02 250);
   --chart-4: oklch(0.55 0.11 145);
   --chart-5: oklch(0.5 0.03 60);
-  --sidebar: oklch(0.19 0.025 55);
-  --sidebar-foreground: oklch(0.95 0.015 84);
-  --sidebar-primary: oklch(0.62 0.14 42);
+  --sidebar: oklch(0.23 0.06 258);
+  --sidebar-foreground: oklch(0.96 0.01 250);
+  --sidebar-primary: oklch(0.63 0.14 243);
   --sidebar-primary-foreground: oklch(0.985 0.01 84);
-  --sidebar-accent: oklch(0.4 0.07 50);
-  --sidebar-accent-foreground: oklch(0.97 0.012 84);
-  --sidebar-border: oklch(0.42 0.06 50);
-  --sidebar-ring: oklch(0.62 0.14 42);
+  --sidebar-accent: oklch(0.36 0.08 256);
+  --sidebar-accent-foreground: oklch(0.97 0.008 250);
+  --sidebar-border: oklch(0.4 0.07 256);
+  --sidebar-ring: oklch(0.63 0.14 243);
 }
 
 .dark {
@@ -323,7 +323,7 @@
   --card-foreground: #18202e;
   --popover: #ffffff;
   --popover-foreground: #18202e;
-  --primary: #6b4428;
+  --primary: #1f4e8c;
   --primary-foreground: #ffffff;
   --secondary: #eef0f3;
   --secondary-foreground: #18202e;
@@ -333,12 +333,12 @@
   --accent-foreground: #18202e;
   --border: #e3e6eb;
   --input: #d5dae1;
-  --ring: #6b4428;
+  --ring: #1f4e8c;
   --shadow-card: 0 1px 2px rgb(16 24 40 / 0.05);
   /* Teinte de marque pour les fonds d'icônes et l'onglet actif */
-  --brand-tint: #f5ede6;
-  /* Brun des graphiques : assez saturé pour ne pas paraître gris (validé) */
-  --brand-chart: #9a5b2e;
+  --brand-tint: #e8f1fb;
+  /* Bleu des graphiques (logo SESA) */
+  --brand-chart: #2a8fd6;
 }
 
 .admin-shell h1,

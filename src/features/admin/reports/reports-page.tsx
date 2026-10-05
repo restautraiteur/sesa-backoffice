@@ -17,7 +17,7 @@ import { formatDay, formatPrice, todayISO, weekdayLabel } from "@core/lib/format
 import { cn } from "@core/lib/utils";
 
 // Les attributs SVG de recharts ne résolvent pas les variables CSS : valeurs du thème gérant.
-const BRAND_CHART = "#9a5b2e";
+const BRAND_CHART = "#2a8fd6";
 const GRID = "#e3e6eb";
 const MUTED = "#5f6b7a";
 
