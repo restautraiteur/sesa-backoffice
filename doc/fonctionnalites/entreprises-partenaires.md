@@ -81,3 +81,14 @@ fonction `place_partner_order` (contrôle de l'heure limite et de l'employé, r�
 - **Tableau de bord** : « Aperçu du mois » (calendrier : portions prévues / réservées, chiffre
   d'affaires par jour ; clic = ouvrir le jour). **Bilan** : bascule Semaine / Mois.
 - Bouton **« Ajouter une entreprise »** en haut de la page Entreprises.
+
+## Menu du mois et choix modifiables (6 octobre 2026)
+- Site : bouton **« Voir tout le menu »** (fenêtre avec tous les plats publiés, semaine par semaine,
+  jour par jour, bouton « Choisir »). Titre « Au menu ce mois-ci » quand plus de 7 jours sont publiés.
+- Panier : choix classés par jour (le 1er tel plat, le 2 tel autre…).
+- Page **« Mes repas »** (`/mes-repas`, lien dans l'en-tête si `CLIENT.partners`) : entreprise +
+  téléphone + code → plats à venir ; **changer de plat** (même jour) ou **annuler un jour** jusqu'à
+  l'heure limite de l'entreprise, puis « Clos ». Stock et total de la commande mis à jour.
+- RPC `partner_my_choices`, `partner_change_choice` (migration `20261006090000`), vérification du code
+  partagée (`_partner_employee_auth`, 5 essais max).
+

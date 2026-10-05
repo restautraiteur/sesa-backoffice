@@ -1305,6 +1305,10 @@ export type Database = {
       };
     };
     Functions: {
+      _partner_employee_auth: {
+        Args: { p_partner: string; p_phone: string; p_pin: string };
+        Returns: Record<string, unknown>;
+      };
       admin_exists: { Args: never; Returns: boolean };
       check_subscription: {
         Args: { p_days: string[]; p_phone: string; p_pin: string };
@@ -1333,6 +1337,20 @@ export type Database = {
       lookup_subscriptions:
         | { Args: { p_phone: string }; Returns: Json }
         | { Args: { p_phone: string; p_pin: string }; Returns: Json };
+      partner_change_choice: {
+        Args: {
+          p_day_product: string;
+          p_item: string;
+          p_partner: string;
+          p_phone: string;
+          p_pin: string;
+        };
+        Returns: Json;
+      };
+      partner_my_choices: {
+        Args: { p_partner: string; p_phone: string; p_pin: string };
+        Returns: Json;
+      };
       place_order: { Args: { p_customer: Json; p_items: Json }; Returns: Json };
       place_partner_order: {
         Args: {
