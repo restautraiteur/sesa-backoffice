@@ -1,6 +1,6 @@
 {
-  "name": "Mon Restaurant — Espace gérant",
-  "short_name": "Gérant",
+  "name": "SESA Catering — Espace gérant",
+  "short_name": "SESA Gérant",
   "start_url": "/admin",
   "scope": "/",
   "display": "standalone",

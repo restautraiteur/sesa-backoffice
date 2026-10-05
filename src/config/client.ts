@@ -4,7 +4,7 @@
  */
 export const CLIENT = {
   /** Nom affiché dans les messages envoyés aux clients. */
-  name: "Mon Restaurant",
+  name: "SESA Catering",
   /** Module « Entreprises partenaires » (employés qui commandent, facturation mensuelle à l'entreprise). */
-  partners: false,
+  partners: true,
 } as const;

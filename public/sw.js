@@ -7,9 +7,9 @@ self.addEventListener("push", (event) => {
   try {
     data = event.data ? event.data.json() : {};
   } catch {
-    data = { title: "Mon Restaurant", body: event.data ? event.data.text() : "" };
+    data = { title: "SESA Catering", body: event.data ? event.data.text() : "" };
   }
-  const title = data.title || "Mon Restaurant";
+  const title = data.title || "SESA Catering";
   event.waitUntil(
     self.registration.showNotification(title, {
       body: data.body || "",
