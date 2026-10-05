@@ -10,6 +10,7 @@ import {
   Receipt,
   Scissors,
   Search,
+  Tags,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@ui/components/ui/button";
@@ -31,6 +32,7 @@ import {
 import { exportOrdersCsv, exportOrdersExcel } from "@/features/admin/orders/export-orders";
 import {
   formatDay,
+  todayISO,
   formatPrice,
   ORDER_STATUSES,
   ORDER_STATUS_LABELS,
@@ -48,6 +50,8 @@ import {
 import { ORDER_STATUS_TONES, PAYMENT_STATUS_TONES } from "@/features/admin/components/status-tones";
 import { cn } from "@core/lib/utils";
 import { CLIENT } from "@/config/client";
+import { partnersQuery } from "@/features/admin/partners/api";
+import { labelGroup, printPartnerLabels, type LabelGroup } from "@/features/admin/partners/print";
 import { SendMessageButton } from "@/features/admin/subscriptions/send-message-button";
 import {
   deliveredMessage,
@@ -68,6 +72,9 @@ export function OrdersPage() {
   }, [q]);
   const [status, setStatus] = useState("all");
   const [day, setDay] = useState("");
+  // Entreprises partenaires : « all », « particuliers » ou l'identifiant d'une entreprise.
+  const [partnerFilter, setPartnerFilter] = useState("all");
+  const { data: partners = [] } = useQuery({ ...partnersQuery(), enabled: CLIENT.partners });
   const [expanded, setExpanded] = useState<string | null>(null);
   const [pendingCancel, setPendingCancel] = useState<Order | null>(null);
 
@@ -87,6 +94,13 @@ export function OrdersPage() {
       : null;
     return orders.filter((order) => {
       if (dayOrderIds && !dayOrderIds.has(order.id)) return false;
+      if (partnerFilter === "particuliers" && order.partner_id) return false;
+      if (
+        partnerFilter !== "all" &&
+        partnerFilter !== "particuliers" &&
+        order.partner_id !== partnerFilter
+      )
+        return false;
       if (!term) return true;
       return (
         order.reference.toLowerCase().includes(term) ||
@@ -94,7 +108,39 @@ export function OrdersPage() {
         `${order.first_name} ${order.last_name}`.toLowerCase().includes(term)
       );
     });
-  }, [orders, items, search, day]);
+  }, [orders, items, search, day, partnerFilter]);
+
+  /** Étiquettes à découper : commandes d'entreprises du jour choisi, regroupées par entreprise. */
+  function printLabels() {
+    const labelDay = day || todayISO();
+    const groups: LabelGroup[] = [];
+    for (const partner of partners) {
+      const lines = filtered
+        .filter((o) => o.partner_id === partner.id && o.status !== "annulee")
+        .flatMap((o) =>
+          (itemsByOrder.get(o.id) ?? [])
+            .filter((i) => i.day_date === labelDay)
+            .map((i) => ({
+              order_id: o.id,
+              reference: o.reference,
+              partner_id: partner.id,
+              employee: o.first_name,
+              phone: o.phone,
+              day_date: i.day_date,
+              product_name: i.product_name,
+              quantity: i.quantity,
+              unit_price: i.unit_price,
+              amount: i.amount,
+            })),
+        );
+      if (lines.length) groups.push(labelGroup(partner, lines));
+    }
+    if (groups.length === 0) {
+      toast.info(`Aucune commande d'entreprise pour le ${formatDay(labelDay).toLowerCase()}.`);
+      return;
+    }
+    printPartnerLabels(groups, labelDay);
+  }
 
   const counts = useMemo(() => {
     const map: Record<string, number> = {};
@@ -142,7 +188,8 @@ export function OrdersPage() {
   const revenue = filtered
     .filter((o) => o.status !== "annulee")
     .reduce((sum, o) => sum + o.total, 0);
-  const filtersActive = search.trim() !== "" || day !== "" || status !== "all";
+  const filtersActive =
+    search.trim() !== "" || day !== "" || status !== "all" || partnerFilter !== "all";
 
   return (
     <div className="space-y-6">
@@ -194,6 +241,11 @@ export function OrdersPage() {
               >
                 <Receipt /> Tickets imprimante 80 mm
               </DropdownMenuItem>
+              {CLIENT.partners && (
+                <DropdownMenuItem onSelect={printLabels}>
+                  <Tags /> Étiquettes entreprises (à découper)
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onSelect={() =>
@@ -241,6 +293,22 @@ export function OrdersPage() {
               </option>
             ))}
           </select>
+          {CLIENT.partners && (
+            <select
+              aria-label="Client"
+              value={partnerFilter}
+              onChange={(e) => setPartnerFilter(e.target.value)}
+              className="h-10 rounded-md border border-input bg-card px-3 text-sm"
+            >
+              <option value="all">Tous les clients</option>
+              <option value="particuliers">Particuliers</option>
+              {partners.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
 
         <div
@@ -287,6 +355,7 @@ export function OrdersPage() {
                     setSearch("");
                     setDay("");
                     setStatus("all");
+                    setPartnerFilter("all");
                   }}
                 >
                   Effacer les filtres

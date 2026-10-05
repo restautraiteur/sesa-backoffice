@@ -28,8 +28,20 @@ sont regroupés en une **facture** (ex. 22 bons = 1 facture).
   désactivé. Ajout un par un ou **import** : fichier **Excel (.xlsx)** ou **CSV**, **lien Google
   Sheets** partagé, ou copier-coller. **Modèle à télécharger** (Nom ; Prénom ; Téléphone ; Email) à
   envoyer à l'entreprise. Envoi du code par SMS ou WhatsApp.
-- **Notifications** (cloche) : nouvelle commande d'entreprise, facture envoyée et impayée depuis plus
-  de 30 jours, code employé bloqué (5 essais faux).
+- **CRUD complet** : créer, modifier, supprimer une entreprise (avec confirmation) ; ajouter,
+  modifier, désactiver, supprimer des employés. **Sélection multiple** des employés : désactiver,
+  réactiver, nouveaux codes, exporter (avec codes), supprimer.
+- **Fiche entreprise · situation financière** : ce qu'elle doit (factures envoyées), dont en retard,
+  non facturé du mois en cours, **délai de paiement** (jours, réglable) et **échéance** de chaque
+  facture, dernier paiement.
+- **Étiquettes à découper** : une étiquette par commande (entreprise, employé, téléphone, n° de
+  commande, plats), regroupées par entreprise, une page par entreprise — depuis Bons de commande ou
+  Commandes (filtre « Client » : particuliers / une entreprise).
+- **Notifications** (cloche, filtre « Entreprises ») : nouvelle commande d'entreprise ; **commandes
+  closes** (récapitulatif à l'heure limite : « RTS : 42 repas aujourd'hui ») ; **factures à envoyer**
+  (du 25 au 5) ; facture en retard (envoyée depuis plus de 30 jours) ; code employé bloqué.
+- **Tableau de bord général** : encart « Entreprises partenaires » (repas du jour par entreprise,
+  chiffre d'affaires du mois, à encaisser, factures en retard).
 - **Bons de commande du jour** : un par entreprise — employés, plats, quantités, montant total ; PDF à
   imprimer / télécharger, case « livré et signé ».
 - **Production** : total par plat et par entreprise (cuisine et livraison).

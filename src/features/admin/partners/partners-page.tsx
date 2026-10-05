@@ -4,6 +4,8 @@ import {
   Building2,
   CheckCircle2,
   Download,
+  Tags,
+  Trash2,
   FileSpreadsheet,
   FileText,
   Pencil,
@@ -26,13 +28,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@ui/components/ui/dialog";
-import { EmptyState, PageHeader } from "@/features/admin/components/admin-ui";
+import { ConfirmDialog, EmptyState, PageHeader } from "@/features/admin/components/admin-ui";
 import { CLIENT } from "@/config/client";
 import { formatPhone } from "@/features/admin/subscriptions/api";
 import { SendMessageButton } from "@/features/admin/subscriptions/send-message-button";
 import {
   cutoffLabel,
   deliveryNotesQuery,
+  dueDateFrom,
+  isOverdue,
   employeesQuery,
   formatHour,
   invoicesQuery,
@@ -44,7 +48,16 @@ import {
   type PartnerEmployee,
   type PartnerLine,
 } from "@/features/admin/partners/api";
-import { exportInvoiceCsv, printDeliveryNote, printInvoice } from "@/features/admin/partners/print";
+import {
+  exportInvoiceCsv,
+  printDeliveryNote,
+  printInvoice,
+  labelGroup,
+  printPartnerLabels,
+  type LabelGroup,
+} from "@/features/admin/partners/print";
+import { downloadFile } from "@/features/admin/orders/export-orders";
+import { Checkbox } from "@ui/components/ui/checkbox";
 import {
   downloadEmployeesTemplate,
   fetchGoogleSheet,
@@ -325,6 +338,7 @@ type PartnerDraft = {
   cutoff_day_offset: string;
   active: boolean;
   logo_url: string;
+  payment_terms_days: string;
 };
 
 const EMPTY_PARTNER: PartnerDraft = {
@@ -338,10 +352,25 @@ const EMPTY_PARTNER: PartnerDraft = {
   cutoff_day_offset: "0",
   active: true,
   logo_url: "",
+  payment_terms_days: "30",
 };
 
 function PartnersTab({ partners }: { partners: Partner[] }) {
   const queryClient = useQueryClient();
+  const [toDelete, setToDelete] = useState<Partner | null>(null);
+  const remove = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await db.from("partners").delete().eq("id", id);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["partners"] });
+      queryClient.invalidateQueries({ queryKey: ["partner_employees"] });
+      setSelected(null);
+      toast.success("Entreprise supprimée");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
   const { data: employees = [] } = useQuery(employeesQuery());
   const [selected, setSelected] = useState<string | null>(null);
   const [draft, setDraft] = useState<PartnerDraft | null>(null);
@@ -360,6 +389,7 @@ function PartnersTab({ partners }: { partners: Partner[] }) {
         cutoff_day_offset: Number(value.cutoff_day_offset),
         active: value.active,
         logo_url: value.logo_url || null,
+        payment_terms_days: Number(value.payment_terms_days) || 0,
       };
       const { data, error } = value.id
         ? await db.from("partners").update(payload).eq("id", value.id).select("id").single()
@@ -464,12 +494,22 @@ function PartnersTab({ partners }: { partners: Partner[] }) {
                   cutoff_day_offset: String(current.cutoff_day_offset),
                   active: current.active,
                   logo_url: current.logo_url ?? "",
+                  payment_terms_days: String(current.payment_terms_days),
                 })
               }
             >
               <Pencil className="size-4" /> Modifier
             </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+              onClick={() => setToDelete(current)}
+            >
+              <Trash2 className="size-4" /> Supprimer
+            </Button>
           </div>
+          <PartnerFinance partner={current} />
           <EmployeesPanel
             partner={current}
             employees={employees.filter((e) => e.partner_id === current.id)}
@@ -481,6 +521,17 @@ function PartnersTab({ partners }: { partners: Partner[] }) {
         setDraft={setDraft}
         onSave={save.mutate}
         saving={save.isPending}
+      />
+      <ConfirmDialog
+        open={toDelete !== null}
+        title={`Supprimer ${toDelete?.name ?? ""} ?`}
+        description="Ses employés et ses factures seront supprimés. Les commandes déjà passées restent dans Commandes. Pour garder l'historique, décochez plutôt « Entreprise active »."
+        confirmLabel="Supprimer l'entreprise"
+        onCancel={() => setToDelete(null)}
+        onConfirm={() => {
+          if (toDelete) remove.mutate(toDelete.id);
+          setToDelete(null);
+        }}
       />
     </div>
   );
@@ -530,6 +581,11 @@ function PartnerDialog({
             </div>
             {field("contact_email", "Contact (email)", { type: "email" })}
             {field("delivery_address", "Adresse de livraison")}
+            {field("payment_terms_days", "Délai de paiement des factures (jours)", {
+              type: "number",
+              min: 0,
+              max: 120,
+            })}
             <div className="grid gap-4 sm:grid-cols-3">
               {field("delivery_time", "Heure de livraison", { type: "time" })}
               {field("cutoff_time", "Heure limite", { type: "time" })}
@@ -657,6 +713,84 @@ function LogoField({ value, onChange }: { value: string; onChange: (url: string)
   );
 }
 
+/** Situation financière : ce qu'elle doit, échéances, retards, non facturé du mois. */
+function PartnerFinance({ partner }: { partner: Partner }) {
+  const today = todayISO();
+  const month = today.slice(0, 7);
+  const { from, to } = monthBounds(month);
+  const { data: lines = [] } = useQuery(partnerLinesQuery(from, to));
+  const { data: invoices = [] } = useQuery(invoicesQuery());
+  const mine = invoices.filter((i) => i.partner_id === partner.id);
+  const unbilled = mine.some((i) => i.month === from)
+    ? 0
+    : lines.filter((l) => l.partner_id === partner.id).reduce((s, l) => s + l.amount, 0);
+  const open = mine
+    .filter((i) => i.status === "envoyee")
+    .sort((a, b) => (a.due_date ?? "").localeCompare(b.due_date ?? ""));
+  const owed = open.reduce((s, i) => s + i.total, 0);
+  const overdue = open.filter((i) => isOverdue(i, today));
+  const lastPaid = mine
+    .filter((i) => i.status === "payee" && i.paid_at)
+    .sort((a, b) => (b.paid_at ?? "").localeCompare(a.paid_at ?? ""))[0];
+  return (
+    <div className="rounded-xl border border-border p-4">
+      <h3 className="font-medium">Situation financière</h3>
+      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-lg bg-muted/50 p-3">
+          <p className="text-xs text-muted-foreground">Doit (factures envoyées)</p>
+          <p className="text-lg font-bold">{formatPrice(owed)}</p>
+          {overdue.length > 0 && (
+            <p className="text-xs font-semibold text-rose-600">
+              dont {formatPrice(overdue.reduce((s, i) => s + i.total, 0))} en retard
+            </p>
+          )}
+        </div>
+        <div className="rounded-lg bg-muted/50 p-3">
+          <p className="text-xs text-muted-foreground">Ce mois-ci, pas encore facturé</p>
+          <p className="text-lg font-bold">{formatPrice(unbilled)}</p>
+          <p className="text-xs text-muted-foreground">{monthLabel(month)}</p>
+        </div>
+        <div className="rounded-lg bg-muted/50 p-3">
+          <p className="text-xs text-muted-foreground">Délai de paiement</p>
+          <p className="text-lg font-bold">{partner.payment_terms_days} jours</p>
+          <p className="text-xs text-muted-foreground">
+            {lastPaid?.paid_at
+              ? `Dernier paiement le ${new Date(lastPaid.paid_at).toLocaleDateString("fr-FR")}`
+              : "Aucun paiement enregistré"}
+          </p>
+        </div>
+      </div>
+      {open.length > 0 && (
+        <ul className="mt-3 divide-y divide-border text-sm">
+          {open.map((i) => (
+            <li key={i.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+              <span>
+                <span className="font-medium">{i.reference}</span>
+                <span className="text-muted-foreground"> · {monthLabel(i.month.slice(0, 7))}</span>
+              </span>
+              <span className="flex items-center gap-2">
+                <span className="font-semibold">{formatPrice(i.total)}</span>
+                <span
+                  className={cn(
+                    "rounded-full px-2 py-0.5 text-xs font-semibold",
+                    isOverdue(i, today)
+                      ? "bg-rose-100 text-rose-700"
+                      : "bg-amber-100 text-amber-800",
+                  )}
+                >
+                  {i.due_date
+                    ? `${isOverdue(i, today) ? "En retard · échéance" : "Échéance"} ${formatDay(i.due_date).toLowerCase()}`
+                    : "Sans échéance"}
+                </span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 type EmployeeDraft = { id?: string; full_name: string; phone: string; email: string };
 
 function EmployeesPanel({
@@ -690,6 +824,8 @@ function EmployeesPanel({
     }
   }
   const [search, setSearch] = useState("");
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [confirmDelete, setConfirmDelete] = useState<string[] | null>(null);
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["partner_employees"] });
   const shown = employees.filter((e) =>
     `${e.full_name} ${e.phone} ${e.email}`.toLowerCase().includes(search.trim().toLowerCase()),
@@ -740,6 +876,64 @@ function EmployeesPanel({
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const bulk = useMutation({
+    mutationFn: async (input: {
+      ids: string[];
+      action: "desactiver" | "reactiver" | "codes" | "supprimer";
+    }) => {
+      if (input.action === "supprimer") {
+        const { error } = await db.from("partner_employees").delete().in("id", input.ids);
+        if (error) throw new Error(error.message);
+        return;
+      }
+      if (input.action === "codes") {
+        for (const id of input.ids) {
+          const { error } = await db
+            .from("partner_employees")
+            .update({
+              pin: String(Math.floor(Math.random() * 10000)).padStart(4, "0"),
+              pin_failures: 0,
+            })
+            .eq("id", id);
+          if (error) throw new Error(error.message);
+        }
+        return;
+      }
+      const { error } = await db
+        .from("partner_employees")
+        .update({ active: input.action === "reactiver" })
+        .in("id", input.ids);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: (_data, input) => {
+      invalidate();
+      setPicked(new Set());
+      toast.success(
+        {
+          desactiver: "Employés désactivés",
+          reactiver: "Employés réactivés",
+          codes: "Nouveaux codes créés",
+          supprimer: "Employés supprimés",
+        }[input.action],
+      );
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  /** Liste des employés avec leurs codes, à transmettre au responsable de l'entreprise. */
+  function exportEmployees(list: PartnerEmployee[]) {
+    const q = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const rows = [
+      ["Nom complet", "Téléphone", "Email", "Code", "Actif"],
+      ...list.map((e) => [e.full_name, e.phone, e.email, e.pin, e.active ? "oui" : "non"]),
+    ];
+    downloadFile(
+      `employes-${partner.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.csv`,
+      rows.map((r) => r.map(q).join(";")).join("\n"),
+      "text/csv;charset=utf-8",
+    );
+  }
+
   const patch = useMutation({
     mutationFn: async (input: { id: string; values: Partial<PartnerEmployee> }) => {
       const { error } = await db.from("partner_employees").update(input.values).eq("id", input.id);
@@ -776,6 +970,11 @@ function EmployeesPanel({
           >
             <Download className="size-4" /> Modèle à remplir
           </Button>
+          {employees.length > 0 && (
+            <Button size="sm" variant="outline" onClick={() => exportEmployees(employees)}>
+              <FileSpreadsheet className="size-4" /> Exporter
+            </Button>
+          )}
           <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
             <Upload className="size-4" /> Importer
           </Button>
@@ -799,93 +998,177 @@ function EmployeesPanel({
           (Nom, Prénom, Téléphone, Email) et envoyez-le à l'entreprise.
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-border">
-          <table className="w-full min-w-[720px] text-sm">
-            <thead>
-              <tr className="bg-muted/50 text-left text-xs font-semibold text-muted-foreground">
-                <th className="px-3 py-2">Employé</th>
-                <th className="px-3 py-2">Téléphone</th>
-                <th className="px-3 py-2">Email</th>
-                <th className="px-3 py-2">Code</th>
-                <th className="px-3 py-2" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {shown.map((e) => {
-                const message = `Bonjour ${e.full_name}, vous pouvez commander vos repas chez ${CLIENT.name} pour ${partner.name}. Au panier, choisissez « ${partner.name} », puis entrez votre numéro et votre code : ${e.pin}. Commandes jusqu'à ${cutoffLabel(partner)}.`;
-                return (
-                  <tr key={e.id} className={cn(!e.active && "text-muted-foreground line-through")}>
-                    <td className="px-3 py-2 font-medium">{e.full_name}</td>
-                    <td className="px-3 py-2">{formatPhone(e.phone)}</td>
-                    <td className="px-3 py-2">{e.email}</td>
-                    <td className="px-3 py-2 font-mono">
-                      {e.pin}
-                      {e.pin_failures >= 5 && (
-                        <span className="ml-1 text-xs font-semibold text-destructive">bloqué</span>
-                      )}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2 text-right">
-                      <SendMessageButton
-                        phone={e.phone}
-                        text={message}
-                        iconOnly
-                        title={`Envoyer le code à ${e.full_name}`}
-                      />
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        title="Nouveau code"
-                        aria-label={`Nouveau code pour ${e.full_name}`}
-                        onClick={() =>
-                          patch.mutate({
-                            id: e.id,
-                            values: {
-                              pin: String(Math.floor(Math.random() * 10000)).padStart(4, "0"),
-                              pin_failures: 0,
-                            },
-                          })
-                        }
-                      >
-                        <RefreshCw className="size-4" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        title="Modifier"
-                        aria-label={`Modifier ${e.full_name}`}
-                        onClick={() =>
-                          setDraft({
-                            id: e.id,
-                            full_name: e.full_name,
-                            phone: e.phone,
-                            email: e.email,
-                          })
-                        }
-                      >
-                        <Pencil className="size-4" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        title={e.active ? "Désactiver (a quitté l'entreprise)" : "Réactiver"}
-                        aria-label={
-                          e.active ? `Désactiver ${e.full_name}` : `Réactiver ${e.full_name}`
-                        }
-                        onClick={() => patch.mutate({ id: e.id, values: { active: !e.active } })}
-                      >
-                        {e.active ? (
-                          <UserX className="size-4" />
-                        ) : (
-                          <CheckCircle2 className="size-4" />
+        <>
+          {picked.size > 0 && (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 p-2 text-sm">
+              <span className="px-2 font-medium">
+                {picked.size} sélectionné{picked.size > 1 ? "s" : ""}
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => bulk.mutate({ ids: [...picked], action: "desactiver" })}
+              >
+                <UserX className="size-4" /> Désactiver
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => bulk.mutate({ ids: [...picked], action: "reactiver" })}
+              >
+                <CheckCircle2 className="size-4" /> Réactiver
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => bulk.mutate({ ids: [...picked], action: "codes" })}
+              >
+                <RefreshCw className="size-4" /> Nouveaux codes
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => exportEmployees(employees.filter((e) => picked.has(e.id)))}
+              >
+                <FileSpreadsheet className="size-4" /> Exporter (avec codes)
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-destructive hover:bg-destructive/10"
+                onClick={() => setConfirmDelete([...picked])}
+              >
+                <Trash2 className="size-4" /> Supprimer
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setPicked(new Set())}>
+                Annuler
+              </Button>
+            </div>
+          )}
+          <div className="overflow-x-auto rounded-lg border border-border">
+            <table className="w-full min-w-[720px] text-sm">
+              <thead>
+                <tr className="bg-muted/50 text-left text-xs font-semibold text-muted-foreground">
+                  <th className="w-10 px-3 py-2">
+                    <Checkbox
+                      aria-label="Tout sélectionner"
+                      checked={shown.length > 0 && shown.every((e) => picked.has(e.id))}
+                      onCheckedChange={(checked) =>
+                        setPicked(checked === true ? new Set(shown.map((e) => e.id)) : new Set())
+                      }
+                    />
+                  </th>
+                  <th className="px-3 py-2">Employé</th>
+                  <th className="px-3 py-2">Téléphone</th>
+                  <th className="px-3 py-2">Email</th>
+                  <th className="px-3 py-2">Code</th>
+                  <th className="px-3 py-2" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {shown.map((e) => {
+                  const message = `Bonjour ${e.full_name}, vous pouvez commander vos repas chez ${CLIENT.name} pour ${partner.name}. Au panier, choisissez « ${partner.name} », puis entrez votre numéro et votre code : ${e.pin}. Commandes jusqu'à ${cutoffLabel(partner)}.`;
+                  return (
+                    <tr
+                      key={e.id}
+                      className={cn(!e.active && "text-muted-foreground line-through")}
+                    >
+                      <td className="px-3 py-2">
+                        <Checkbox
+                          aria-label={`Sélectionner ${e.full_name}`}
+                          checked={picked.has(e.id)}
+                          onCheckedChange={(checked) => {
+                            const next = new Set(picked);
+                            if (checked === true) next.add(e.id);
+                            else next.delete(e.id);
+                            setPicked(next);
+                          }}
+                        />
+                      </td>
+                      <td className="px-3 py-2 font-medium">{e.full_name}</td>
+                      <td className="px-3 py-2">{formatPhone(e.phone)}</td>
+                      <td className="px-3 py-2">{e.email}</td>
+                      <td className="px-3 py-2 font-mono">
+                        {e.pin}
+                        {e.pin_failures >= 5 && (
+                          <span className="ml-1 text-xs font-semibold text-destructive">
+                            bloqué
+                          </span>
                         )}
-                      </Button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right">
+                        <SendMessageButton
+                          phone={e.phone}
+                          text={message}
+                          iconOnly
+                          title={`Envoyer le code à ${e.full_name}`}
+                        />
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          title="Nouveau code"
+                          aria-label={`Nouveau code pour ${e.full_name}`}
+                          onClick={() =>
+                            patch.mutate({
+                              id: e.id,
+                              values: {
+                                pin: String(Math.floor(Math.random() * 10000)).padStart(4, "0"),
+                                pin_failures: 0,
+                              },
+                            })
+                          }
+                        >
+                          <RefreshCw className="size-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          title="Modifier"
+                          aria-label={`Modifier ${e.full_name}`}
+                          onClick={() =>
+                            setDraft({
+                              id: e.id,
+                              full_name: e.full_name,
+                              phone: e.phone,
+                              email: e.email,
+                            })
+                          }
+                        >
+                          <Pencil className="size-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          title={e.active ? "Désactiver (a quitté l'entreprise)" : "Réactiver"}
+                          aria-label={
+                            e.active ? `Désactiver ${e.full_name}` : `Réactiver ${e.full_name}`
+                          }
+                          onClick={() => patch.mutate({ id: e.id, values: { active: !e.active } })}
+                        >
+                          {e.active ? (
+                            <UserX className="size-4" />
+                          ) : (
+                            <CheckCircle2 className="size-4" />
+                          )}
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          title="Supprimer"
+                          aria-label={`Supprimer ${e.full_name}`}
+                          className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                          onClick={() => setConfirmDelete([e.id])}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       <Dialog open={draft !== null} onOpenChange={(open) => !open && setDraft(null)}>
@@ -927,6 +1210,18 @@ function EmployeesPanel({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        title={`Supprimer ${confirmDelete?.length ?? 0} employé${(confirmDelete?.length ?? 0) > 1 ? "s" : ""} ?`}
+        description="Ils ne pourront plus commander. Leurs commandes passées restent dans l'historique. Pour un départ temporaire, préférez « Désactiver »."
+        confirmLabel="Supprimer"
+        onCancel={() => setConfirmDelete(null)}
+        onConfirm={() => {
+          if (confirmDelete) bulk.mutate({ ids: confirmDelete, action: "supprimer" });
+          setConfirmDelete(null);
+        }}
+      />
 
       <Dialog open={importOpen} onOpenChange={setImportOpen}>
         <DialogContent className="max-h-[92vh] max-w-xl overflow-y-auto">
@@ -1085,12 +1380,32 @@ function NotesTab({ partners }: { partners: Partner[] }) {
             {totals.size > 0 && ` · ${[...totals].map(([name, q]) => `${q} × ${name}`).join(", ")}`}
           </p>
         </div>
-        <Input
-          type="date"
-          className="w-44"
-          value={day}
-          onChange={(e) => setDay(e.target.value || todayISO())}
-        />
+        <div className="flex flex-wrap gap-2">
+          {byPartner.size > 0 && (
+            <Button
+              variant="outline"
+              onClick={() =>
+                printPartnerLabels(
+                  [...byPartner]
+                    .map(([id, l]) => {
+                      const partner = partners.find((p) => p.id === id);
+                      return partner ? labelGroup(partner, l) : null;
+                    })
+                    .filter((g): g is LabelGroup => g !== null),
+                  day,
+                )
+              }
+            >
+              <Tags className="size-4" /> Toutes les étiquettes
+            </Button>
+          )}
+          <Input
+            type="date"
+            className="w-44"
+            value={day}
+            onChange={(e) => setDay(e.target.value || todayISO())}
+          />
+        </div>
       </div>
 
       {!isLoading && byPartner.size === 0 && (
@@ -1129,6 +1444,13 @@ function NotesTab({ partners }: { partners: Partner[] }) {
                   onClick={() => printDeliveryNote(partner, day, partnerLines, number)}
                 >
                   <Printer className="size-4" /> Bon de commande (PDF)
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => printPartnerLabels([labelGroup(partner, partnerLines)], day)}
+                >
+                  <Tags className="size-4" /> Étiquettes à découper
                 </Button>
                 <Button
                   size="sm"
@@ -1185,6 +1507,8 @@ function InvoicesTab({ partners }: { partners: Partner[] }) {
           reference,
           total: input.total,
           status: "envoyee",
+          sent_at: new Date().toISOString(),
+          due_date: dueDateFrom(todayISO(), input.partner.payment_terms_days),
         },
         { onConflict: "partner_id,month" },
       );
@@ -1272,6 +1596,17 @@ function InvoicesTab({ partners }: { partners: Partner[] }) {
             >
               {!invoice ? "À facturer" : invoice.status === "payee" ? "Payée" : "Envoyée"}
             </span>
+            {invoice?.status === "envoyee" && invoice.due_date && (
+              <span
+                className={cn(
+                  "text-xs font-medium",
+                  isOverdue(invoice, todayISO()) ? "text-rose-600" : "text-muted-foreground",
+                )}
+              >
+                {isOverdue(invoice, todayISO()) ? "En retard · " : ""}échéance{" "}
+                {formatDay(invoice.due_date).toLowerCase()}
+              </span>
+            )}
             {invoice && invoice.total !== total && (
               <span className="text-xs text-amber-700">
                 Montant changé depuis l'envoi ({formatPrice(invoice.total)})

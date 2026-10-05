@@ -41,6 +41,8 @@ import {
 import { addDays } from "@/features/admin/menu-planning/calendar";
 import { EmptyState, PageHeader, ProductThumb } from "@/features/admin/components/admin-ui";
 import { cn } from "@core/lib/utils";
+import { CLIENT } from "@/config/client";
+import { PartnersTodayPanel } from "@/features/admin/partners/partners-today";
 import { productionLogsQuery } from "@/features/admin/simulation/api";
 import { ProductionDialog } from "@/features/admin/simulation/components/production-dialog";
 
@@ -313,6 +315,8 @@ export function Dashboard() {
           }
         />
       </div>
+
+      {CLIENT.partners && <PartnersTodayPanel day={day} />}
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Panel

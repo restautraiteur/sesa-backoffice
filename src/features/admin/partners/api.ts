@@ -14,6 +14,8 @@ export type Partner = {
   active: boolean;
   notes: string | null;
   logo_url: string | null;
+  /** Délai de paiement des factures, en jours. */
+  payment_terms_days: number;
 };
 
 export type PartnerEmployee = {
@@ -45,6 +47,7 @@ export type PartnerInvoice = {
   status: "envoyee" | "payee";
   sent_at: string;
   paid_at: string | null;
+  due_date: string | null;
 };
 
 /** Ligne de commande d'un employé (pour les bons et les factures). */
@@ -167,4 +170,16 @@ export function monthLabel(month: string) {
     year: "numeric",
     timeZone: "UTC",
   }).format(new Date(Date.UTC(y!, m! - 1, 1)));
+}
+
+/** Facture envoyée, non payée, dont l'échéance est passée. */
+export function isOverdue(invoice: Pick<PartnerInvoice, "status" | "due_date">, today: string) {
+  return invoice.status === "envoyee" && !!invoice.due_date && invoice.due_date < today;
+}
+
+/** Échéance d'une facture envoyée aujourd'hui. */
+export function dueDateFrom(today: string, days: number) {
+  const d = new Date(`${today}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
 }

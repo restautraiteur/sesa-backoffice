@@ -13,7 +13,12 @@ import {
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { CLIENT } from "@/config/client";
-import { employeesQuery, invoicesQuery, partnersQuery } from "@/features/admin/partners/api";
+import {
+  employeesQuery,
+  invoicesQuery,
+  partnerLinesQuery,
+  partnersQuery,
+} from "@/features/admin/partners/api";
 import { Popover, PopoverContent, PopoverTrigger } from "@ui/components/ui/popover";
 import type { Order } from "@/features/admin/orders/api";
 import type { MenuRow } from "@core/domain/menu/api";
@@ -41,6 +46,8 @@ const KIND_STYLE: Record<NotificationKind, { icon: typeof Bell; className: strin
   commande_entreprise: { icon: Building2, className: "bg-indigo-50 text-indigo-700" },
   facture_impayee: { icon: FileWarning, className: "bg-amber-50 text-amber-700" },
   code_bloque: { icon: KeyRound, className: "bg-rose-50 text-rose-700" },
+  commandes_closes: { icon: CalendarClock, className: "bg-indigo-50 text-indigo-700" },
+  factures_a_envoyer: { icon: FileWarning, className: "bg-sky-50 text-sky-700" },
 };
 
 export function NotificationBell({ orders, menu }: { orders: Order[]; menu: MenuRow[] }) {
@@ -60,6 +67,16 @@ export function NotificationBell({ orders, menu }: { orders: Order[]; menu: Menu
   const { data: partners = [] } = useQuery({ ...partnersQuery(), enabled: CLIENT.partners });
   const { data: employees = [] } = useQuery({ ...employeesQuery(), enabled: CLIENT.partners });
   const { data: invoices = [] } = useQuery({ ...invoicesQuery(), enabled: CLIENT.partners });
+  const linesFrom = (() => {
+    const d = new Date(`${todayISO().slice(0, 7)}-01T00:00:00Z`);
+    d.setUTCMonth(d.getUTCMonth() - 1);
+    return d.toISOString().slice(0, 10);
+  })();
+  const { data: lines = [] } = useQuery({
+    ...partnerLinesQuery(linesFrom, todayISO()),
+    enabled: CLIENT.partners,
+    refetchInterval: 60_000,
+  });
   const notifications = useMemo(
     () =>
       buildNotifications(
@@ -67,9 +84,9 @@ export function NotificationBell({ orders, menu }: { orders: Order[]; menu: Menu
         menu,
         todayISO(),
         now.getTime(),
-        CLIENT.partners ? { partners, employees, invoices } : undefined,
+        CLIENT.partners ? { partners, employees, invoices, lines } : undefined,
       ),
-    [orders, menu, now, partners, employees, invoices],
+    [orders, menu, now, partners, employees, invoices, lines],
   );
   const unread = notifications.filter((n) => !seen.has(n.id));
   const visible = group === "all" ? notifications : notifications.filter((n) => n.group === group);

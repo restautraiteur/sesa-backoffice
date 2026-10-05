@@ -165,3 +165,72 @@ export function exportInvoiceCsv(partner: Partner, month: string, lines: Partner
     "text/csv;charset=utf-8",
   );
 }
+
+const LABEL_CSS = `
+  @page { size: A4; margin: 8mm; }
+  .labels-doc { padding: 16px; }
+  .company { page-break-after: always; }
+  .company:last-child { page-break-after: auto; }
+  .company-head { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; padding-bottom: 6px; border-bottom: 2px solid #18202e; }
+  .company-head img { height: 30px; max-width: 110px; object-fit: contain; }
+  .company-head h2 { margin: 0; font-size: 16px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); }
+  .label { border: 1px dashed #9aa3af; padding: 10px 12px; min-height: 120px; page-break-inside: avoid; }
+  .label .co { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: #5f6b7a; display: flex; justify-content: space-between; }
+  .label .name { font-size: 15px; font-weight: 700; margin: 4px 0 2px; }
+  .label .ref { font-weight: 700; }
+  .label ul { margin: 6px 0 0; padding-left: 16px; }
+`;
+
+/** Une étiquette par commande d'employé, regroupées par entreprise, à découper et coller. */
+export type LabelGroup = {
+  partner: Partner;
+  orders: {
+    reference: string;
+    employee: string;
+    phone: string;
+    items: { name: string; quantity: number }[];
+  }[];
+};
+
+export function printPartnerLabels(groups: LabelGroup[], day: string) {
+  const body = `<div class="labels-doc">${groups
+    .map(
+      (g) => `<section class="company">
+      <div class="company-head">${g.partner.logo_url ? `<img src="${esc(g.partner.logo_url)}" alt="" />` : ""}<h2>${esc(
+        g.partner.name,
+      )}</h2><span class="muted">${esc(formatDay(day))} · ${g.orders.length} commande(s) · livraison ${esc(
+        formatHour(g.partner.delivery_time),
+      )}</span></div>
+      <div class="grid">${[...g.orders]
+        .sort((a, b) => a.employee.localeCompare(b.employee))
+        .map(
+          (o) => `<div class="label">
+          <div class="co"><span>${esc(g.partner.name)}</span><span class="ref">${esc(o.reference)}</span></div>
+          <div class="name">${esc(o.employee)}</div>
+          <div class="muted">${esc(o.phone)}</div>
+          <ul>${o.items.map((i) => `<li>${i.quantity} × ${esc(i.name)}</li>`).join("")}</ul>
+        </div>`,
+        )
+        .join("")}</div>
+    </section>`,
+    )
+    .join("")}</div>`;
+  openPrintWindow(`Étiquettes entreprises · ${formatDay(day)}`, body, LABEL_CSS);
+}
+
+/** Lignes d'une entreprise → une étiquette par commande. */
+export function labelGroup(partner: Partner, lines: PartnerLine[]): LabelGroup {
+  const orders = new Map<string, LabelGroup["orders"][number]>();
+  for (const l of lines) {
+    const o = orders.get(l.order_id) ?? {
+      reference: l.reference,
+      employee: l.employee,
+      phone: l.phone,
+      items: [],
+    };
+    o.items.push({ name: l.product_name, quantity: l.quantity });
+    orders.set(l.order_id, o);
+  }
+  return { partner, orders: [...orders.values()] };
+}

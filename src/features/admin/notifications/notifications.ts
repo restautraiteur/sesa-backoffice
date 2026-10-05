@@ -13,7 +13,9 @@ export type NotificationKind =
   | "plat_epuise"
   | "commande_entreprise"
   | "facture_impayee"
-  | "code_bloque";
+  | "code_bloque"
+  | "commandes_closes"
+  | "factures_a_envoyer";
 
 export type AdminNotification = {
   id: string;
@@ -39,6 +41,8 @@ export const NOTIFICATION_KINDS: Record<
   commande_entreprise: { label: "Commande entreprise", group: "entreprises" },
   facture_impayee: { label: "Facture impayée", group: "entreprises" },
   code_bloque: { label: "Code employé bloqué", group: "entreprises" },
+  commandes_closes: { label: "Commandes closes", group: "entreprises" },
+  factures_a_envoyer: { label: "Factures à envoyer", group: "entreprises" },
 };
 
 export const NOTIFICATION_GROUPS: { value: NotificationGroup | "all"; label: string }[] = [
@@ -52,7 +56,15 @@ export const NOTIFICATION_GROUPS: { value: NotificationGroup | "all"; label: str
 
 /** Données du module « Entreprises partenaires » (si activé). */
 export type PartnerNotificationData = {
-  partners: { id: string; name: string }[];
+  partners: {
+    id: string;
+    name: string;
+    cutoff_time: string;
+    cutoff_day_offset: number;
+    delivery_time: string;
+  }[];
+  /** Repas commandés par les entreprises (mois précédent et mois en cours). */
+  lines: { partner_id: string; day_date: string; quantity: number }[];
   employees: {
     id: string;
     full_name: string;
@@ -63,6 +75,7 @@ export type PartnerNotificationData = {
   invoices: {
     id: string;
     partner_id: string;
+    month: string;
     reference: string;
     total: number;
     status: string;
@@ -168,6 +181,48 @@ export function buildNotifications(
       detail: `${partnerName.get(employee.partner_id) ?? ""} · code bloqué après 5 essais`,
       at: new Date(now).toISOString(),
     });
+  }
+  // Récapitulatif à l'heure limite : les commandes du jour sont closes, quantités à préparer.
+  for (const partner of partnerData?.partners ?? []) {
+    const meals = (partnerData?.lines ?? [])
+      .filter((l) => l.partner_id === partner.id && l.day_date === today)
+      .reduce((s, l) => s + l.quantity, 0);
+    if (meals === 0) continue;
+    const deadline = new Date(`${today}T${partner.cutoff_time}Z`);
+    deadline.setUTCDate(deadline.getUTCDate() - partner.cutoff_day_offset);
+    if (now < deadline.getTime()) continue;
+    list.push({
+      id: `commandes_closes:${partner.id}:${today}`,
+      kind: "commandes_closes",
+      group: "entreprises",
+      title: `${partner.name} : ${meals} repas aujourd'hui`,
+      detail: `Commandes closes · livraison à ${partner.delivery_time.slice(0, 5).replace(":", " h ")}`,
+      at: deadline.toISOString(),
+    });
+  }
+  // Fin / début de mois : entreprises qui ont commandé ce mois-là sans facture envoyée.
+  const dayOfMonth = Number(today.slice(8, 10));
+  if (partnerData && (dayOfMonth >= 25 || dayOfMonth <= 5)) {
+    const ref = new Date(`${today.slice(0, 7)}-01T00:00:00Z`);
+    if (dayOfMonth <= 5) ref.setUTCMonth(ref.getUTCMonth() - 1);
+    const month = ref.toISOString().slice(0, 7);
+    const ordered = new Set(
+      partnerData.lines.filter((l) => l.day_date.startsWith(month)).map((l) => l.partner_id),
+    );
+    const invoiced = new Set(
+      partnerData.invoices.filter((i) => i.month.startsWith(month)).map((i) => i.partner_id),
+    );
+    const missing = [...ordered].filter((id) => !invoiced.has(id));
+    if (missing.length > 0) {
+      list.push({
+        id: `factures_a_envoyer:${month}:${missing.length}`,
+        kind: "factures_a_envoyer",
+        group: "entreprises",
+        title: `${missing.length} facture${missing.length > 1 ? "s" : ""} à envoyer`,
+        detail: missing.map((id) => partnerName.get(id) ?? "").join(", "),
+        at: new Date(now).toISOString(),
+      });
+    }
   }
   return list.sort((a, b) => b.at.localeCompare(a.at));
 }
