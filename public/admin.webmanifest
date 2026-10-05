@@ -1,0 +1,13 @@
+{
+  "name": "Mon Restaurant — Espace gérant",
+  "short_name": "Gérant",
+  "start_url": "/admin",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f5f6f8",
+  "theme_color": "#ffffff",
+  "icons": [
+    { "src": "/favicon.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}
