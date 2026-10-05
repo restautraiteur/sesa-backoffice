@@ -284,3 +284,13 @@ Fonctionnalités génériques construites chez le restaurant avant la création 
 | --- | --- | --- | --- |
 | Abonnements | `src/features/subscriptions/`, `src/routes/abonnement.tsx`, `src/config/client.ts` | `src/features/admin/subscriptions/`, `src/routes/admin/abonnements.tsx` | `20261003180000_abonnements.sql` |
 | Simulation (cuisson depuis le menu, invendus, prix du marché) | — | `src/features/admin/simulation/` | — |
+
+## À faire plus tard : activer l'envoi des factures par email (Brevo)
+Le code est prêt ; il manque la configuration :
+1. Créer un compte gratuit sur brevo.com.
+2. Ajouter le domaine de l'entreprise (ex. sesa-catering.com) dans « Expéditeurs, domaines et IP dédiées »
+   et les enregistrements DNS donnés par Brevo (sinon : spam).
+3. « SMTP et API → Clés API » : créer une clé.
+4. Vercel (projet <client>-backoffice) : `BREVO_API_KEY`, `INVOICE_FROM_EMAIL`
+   (ex. « SESA Catering <factures@sesa-catering.com> »), `CRON_SECRET` (déjà dans sesa.env).
+5. Essai : onglet Facturation → « Envoyer par email » avec son propre email comme responsable.
