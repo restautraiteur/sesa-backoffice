@@ -65,3 +65,19 @@ sont regroupés en une **facture** (ex. 22 bons = 1 facture).
 `partners`, `partner_employees`, `orders.partner_id` / `partner_employee_id`, statut de paiement
 `facture_entreprise`, `partner_delivery_notes` (bon du jour), `partner_invoices` (facture du mois) ;
 fonction `place_partner_order` (contrôle de l'heure limite et de l'employé, réservation du stock).
+
+## Envoi automatique des factures (5 octobre 2026)
+- Fiche entreprise : **« Envoi automatique de la facture : le N de chaque mois »** (1 à 28, ou manuel).
+  La facture couvre **du N+1 du mois précédent au N** (ex. le 24 : du 25 au 24) et part **par email au
+  responsable** (« Email du responsable » de la fiche), avec le détail par employé en pièce jointe (CSV).
+- Tâche quotidienne Vercel (`vercel.json` → `/api/cron/invoices`, 7 h) protégée par `CRON_SECRET`.
+- Onglet Facturation : période de chaque entreprise, bouton **« Envoyer par email »** / « Renvoyer »,
+  date et destinataire du dernier envoi.
+- Emails via **Resend** : variables `RESEND_API_KEY` et `INVOICE_FROM_EMAIL` sur Vercel.
+
+## Autres ajouts du même jour
+- **Catalogue** : types de cuisine (sénégalaise, marocaine…) gérés dans « Types de cuisine », filtre,
+  badge ; visibles sur le site (cartes des plats) et dans la planification des menus.
+- **Tableau de bord** : « Aperçu du mois » (calendrier : portions prévues / réservées, chiffre
+  d'affaires par jour ; clic = ouvrir le jour). **Bilan** : bascule Semaine / Mois.
+- Bouton **« Ajouter une entreprise »** en haut de la page Entreprises.

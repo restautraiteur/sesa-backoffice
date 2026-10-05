@@ -36,11 +36,11 @@ type WeekStats = {
 
 function statsFor(
   start: string,
+  end: string,
   orders: Order[],
   items: OrderItem[],
   menu: MenuRow[],
 ): WeekStats & { weekItems: OrderItem[]; weekMenu: MenuRow[] } {
-  const end = addDays(start, 6);
   const cancelled = new Set(orders.filter((o) => o.status === "annulee").map((o) => o.id));
   const paid = new Set(orders.filter((o) => o.payment_status === "paye").map((o) => o.id));
   const weekItems = items.filter(
@@ -73,14 +73,31 @@ export function ReportsPage() {
   const { data: items = [] } = useQuery(orderItemsQuery());
   const { data: menu = [] } = useQuery(adminMenuQuery());
   const today = todayISO();
+  // Période : la semaine (lundi → dimanche) ou le mois (du 1er au dernier jour).
+  const [mode, setMode] = useState<"semaine" | "mois">("semaine");
   const [start, setStart] = useState(() => mondayOf(today));
-  const end = addDays(start, 6);
-  const isCurrentWeek = today >= start && today <= end;
+  const end = mode === "semaine" ? addDays(start, 6) : monthEnd(start);
+  const prevStart = mode === "semaine" ? addDays(start, -7) : shiftMonth(start, -1);
+  const prevEnd = mode === "semaine" ? addDays(start, -1) : monthEnd(prevStart);
+  const isCurrent = today >= start && today <= end;
+  const periodThis = mode === "semaine" ? "cette semaine" : "ce mois-ci";
+  function switchMode(next: "semaine" | "mois") {
+    setMode(next);
+    setStart(next === "semaine" ? mondayOf(today) : `${today.slice(0, 7)}-01`);
+  }
+  function move(step: number) {
+    setStart(mode === "semaine" ? addDays(start, 7 * step) : shiftMonth(start, step));
+  }
+  const dayCount =
+    Math.round((Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86400000) + 1;
 
-  const current = useMemo(() => statsFor(start, orders, items, menu), [start, orders, items, menu]);
+  const current = useMemo(
+    () => statsFor(start, end, orders, items, menu),
+    [start, end, orders, items, menu],
+  );
   const previous = useMemo(
-    () => statsFor(addDays(start, -7), orders, items, menu),
-    [start, orders, items, menu],
+    () => statsFor(prevStart, prevEnd, orders, items, menu),
+    [prevStart, prevEnd, orders, items, menu],
   );
 
   const average = current.orders > 0 ? Math.round(current.revenue / current.orders) : 0;
@@ -91,7 +108,7 @@ export function ReportsPage() {
   // Chiffre d'affaires et commandes par jour de livraison.
   const perDay = useMemo(
     () =>
-      Array.from({ length: 7 }, (_, index) => {
+      Array.from({ length: dayCount }, (_, index) => {
         const date = addDays(start, index);
         const dayItems = current.weekItems.filter((i) => i.day_date === date);
         return {
@@ -101,7 +118,7 @@ export function ReportsPage() {
           orders: new Set(dayItems.map((i) => i.order_id)).size,
         };
       }),
-    [start, current.weekItems],
+    [start, dayCount, current.weekItems],
   );
   const busiest = [...perDay].sort((a, b) => b.revenue - a.revenue)[0];
 
@@ -141,40 +158,69 @@ export function ReportsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Bilan de la semaine"
-        description="Ventes, plats les plus demandés et quantités à ajuster pour les prochaines semaines."
+        title={mode === "semaine" ? "Bilan de la semaine" : "Bilan du mois"}
+        description="Ventes, plats les plus demandés et quantités à ajuster pour les prochaines périodes."
         actions={
-          <div className="flex h-9 items-center rounded-lg border border-border bg-card shadow-sm">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-full rounded-r-none"
-              aria-label="Semaine précédente"
-              onClick={() => setStart(addDays(start, -7))}
+          <div className="flex flex-wrap items-center gap-2">
+            <div
+              role="radiogroup"
+              className="flex h-9 rounded-lg border border-border bg-card p-0.5 shadow-sm"
             >
-              <ChevronLeft />
-            </Button>
-            <span className="min-w-48 border-x border-border px-3 text-center text-sm font-medium">
-              {shortDate(start, start.slice(5, 7) !== end.slice(5, 7))} – {shortDate(end)}
-            </span>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-full rounded-l-none"
-              aria-label="Semaine suivante"
-              onClick={() => setStart(addDays(start, 7))}
-            >
-              <ChevronRight />
-            </Button>
-            {!isCurrentWeek && (
+              {(["semaine", "mois"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  role="radio"
+                  aria-checked={mode === m}
+                  onClick={() => switchMode(m)}
+                  className={
+                    mode === m
+                      ? "rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground"
+                      : "rounded-md px-3 text-sm font-medium text-muted-foreground hover:text-foreground"
+                  }
+                >
+                  {m === "semaine" ? "Semaine" : "Mois"}
+                </button>
+              ))}
+            </div>
+            <div className="flex h-9 items-center rounded-lg border border-border bg-card shadow-sm">
               <Button
                 variant="ghost"
-                className="h-full rounded-l-none border-l border-border px-3"
-                onClick={() => setStart(mondayOf(today))}
+                size="icon"
+                className="h-full rounded-r-none"
+                aria-label="Période précédente"
+                onClick={() => move(-1)}
               >
-                Cette semaine
+                <ChevronLeft />
               </Button>
-            )}
+              <span className="min-w-48 border-x border-border px-3 text-center text-sm font-medium">
+                {mode === "mois"
+                  ? new Intl.DateTimeFormat("fr-FR", {
+                      month: "long",
+                      year: "numeric",
+                      timeZone: "UTC",
+                    }).format(new Date(`${start}T00:00:00Z`))
+                  : `${shortDate(start, start.slice(5, 7) !== end.slice(5, 7))} – ${shortDate(end)}`}
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-full rounded-l-none"
+                aria-label="Période suivante"
+                onClick={() => move(1)}
+              >
+                <ChevronRight />
+              </Button>
+              {!isCurrent && (
+                <Button
+                  variant="ghost"
+                  className="h-full rounded-l-none border-l border-border px-3"
+                  onClick={() => switchMode(mode)}
+                >
+                  {mode === "semaine" ? "Cette semaine" : "Ce mois-ci"}
+                </Button>
+              )}
+            </div>
           </div>
         }
       />
@@ -187,7 +233,7 @@ export function ReportsPage() {
           hint={
             current.revenue > 0
               ? `${formatPrice(current.cashed)} encaissés`
-              : "Aucune vente cette semaine"
+              : `Aucune vente ${periodThis}`
           }
         />
         <Kpi
@@ -213,7 +259,7 @@ export function ReportsPage() {
           hint={
             current.planned > 0
               ? `${current.reserved} sur ${current.planned} prévues`
-              : "Aucun menu cette semaine"
+              : `Aucun menu ${periodThis}`
           }
         />
       </div>
@@ -283,7 +329,10 @@ export function ReportsPage() {
           </table>
         </Panel>
 
-        <Panel title="Les plus vendus" subtitle="Quantités commandées sur la semaine">
+        <Panel
+          title="Les plus vendus"
+          subtitle={`Quantités commandées sur ${mode === "semaine" ? "la semaine" : "le mois"}`}
+        >
           {topProducts.length === 0 ? (
             <EmptyState title="Aucune vente">Les produits vendus apparaîtront ici.</EmptyState>
           ) : (
@@ -323,7 +372,7 @@ export function ReportsPage() {
         >
           <MenuList
             rows={soldOut}
-            empty="Aucun plat épuisé cette semaine."
+            empty={`Aucun plat épuisé ${periodThis}.`}
             badge={() => (
               <span className="rounded-full bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-700">
                 Épuisé
@@ -339,7 +388,7 @@ export function ReportsPage() {
         >
           <MenuList
             rows={lowDemand}
-            empty="Aucun plat sous-vendu cette semaine."
+            empty={`Aucun plat sous-vendu ${periodThis}.`}
             badge={(row) => (
               <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium tabular-nums text-muted-foreground">
                 {row.stock_reserved}/{row.stock_initial}
@@ -361,7 +410,7 @@ export function ReportsPage() {
   );
 }
 
-/** Variation en % par rapport à la semaine précédente (null si pas de base de comparaison). */
+/** Variation en % par rapport à la période précédente (null si pas de base de comparaison). */
 function relative(value: number, before: number) {
   if (before === 0) return null;
   return { value: Math.round(((value - before) / before) * 100), unit: "%" };
@@ -395,7 +444,7 @@ function Kpi({
               delta.value < 0 && "bg-rose-50 text-rose-700",
               delta.value === 0 && "bg-muted",
             )}
-            title="Par rapport à la semaine précédente"
+            title="Par rapport à la période précédente"
           >
             <Icon className="size-3" />
             {delta.value > 0 ? "+" : ""}
@@ -484,4 +533,16 @@ function PanelLink({ children }: { children: ReactNode }) {
       {children}
     </Link>
   );
+}
+
+/** Dernier jour du mois d'une date « AAAA-MM-JJ ». */
+function monthEnd(iso: string) {
+  const [y, m] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y!, m!, 0)).toISOString().slice(0, 10);
+}
+
+/** Premier jour du mois décalé de `step` mois. */
+function shiftMonth(iso: string, step: number) {
+  const [y, m] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y!, m! - 1 + step, 1)).toISOString().slice(0, 10);
 }

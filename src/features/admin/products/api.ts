@@ -10,7 +10,18 @@ export type Product = {
   category: string;
   base_price: number;
   active: boolean;
+  /** Type de cuisine du plat (sénégalaise, marocaine…). */
+  dish_category_id: string | null;
 };
+
+export type DishCategory = { id: string; name: string; sort_order: number };
+
+export const dishCategoriesQuery = () =>
+  queryOptions({
+    queryKey: ["dish_categories"],
+    queryFn: () =>
+      run<DishCategory[]>(db.from("dish_categories").select("*").order("sort_order").order("name")),
+  });
 
 export const productsQuery = () =>
   queryOptions({

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { ImagePlus, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { ImagePlus, Pencil, Plus, Search, Tags, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@ui/components/ui/button";
 import { Input } from "@ui/components/ui/input";
@@ -16,6 +16,7 @@ import {
 } from "@ui/components/ui/dialog";
 import { db } from "@core/lib/db";
 import {
+  dishCategoriesQuery,
   productsQuery,
   productVariantsQuery,
   type Product,
@@ -43,6 +44,7 @@ type Draft = {
   category: string;
   base_price: number;
   active: boolean;
+  dish_category_id: string;
   /** Formats du jus (utilisés seulement si `category === "jus"`). */
   variants: Record<JuiceSize, VariantDraft>;
 };
@@ -65,6 +67,7 @@ const EMPTY: Draft = {
   category: "plat",
   base_price: 0,
   active: true,
+  dish_category_id: "",
   variants: EMPTY_VARIANTS,
 };
 
@@ -76,6 +79,10 @@ export function ProductsPage() {
   const [uploading, setUploading] = useState(false);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
+  const [cuisine, setCuisine] = useState("all");
+  const [managing, setManaging] = useState(false);
+  const { data: cuisines = [] } = useQuery(dishCategoriesQuery());
+  const cuisineName = (id: string | null) => cuisines.find((c) => c.id === id)?.name;
   const [toDelete, setToDelete] = useState<Product | null>(null);
 
   async function pickPhoto(file: File) {
@@ -101,6 +108,8 @@ export function ProductsPage() {
         category: value.category,
         base_price: value.base_price,
         active: value.active,
+        dish_category_id:
+          value.category === "plat" && value.dish_category_id ? value.dish_category_id : null,
       };
       const query = value.id
         ? db.from("products").update(payload).eq("id", value.id).select("id").single()
@@ -178,11 +187,17 @@ export function ProductsPage() {
       category: product.category,
       base_price: product.base_price,
       active: product.active,
+      dish_category_id: product.dish_category_id ?? "",
     });
   }
 
   const filtered = products.filter((product) => {
     if (category !== "all" && product.category !== category) return false;
+    if (
+      cuisine !== "all" &&
+      (cuisine === "none" ? product.dish_category_id : product.dish_category_id !== cuisine)
+    )
+      return false;
     const term = search.trim().toLowerCase();
     return !term || product.name.toLowerCase().includes(term);
   });
@@ -193,9 +208,14 @@ export function ProductsPage() {
         title="Catalogue"
         description="Les plats et jus que vous pouvez mettre au menu."
         actions={
-          <Button onClick={() => setDraft({ ...EMPTY })}>
-            <Plus /> Ajouter un produit
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => setManaging(true)}>
+              <Tags /> Types de cuisine
+            </Button>
+            <Button onClick={() => setDraft({ ...EMPTY })}>
+              <Plus /> Ajouter un produit
+            </Button>
+          </div>
         }
       />
 
@@ -233,6 +253,22 @@ export function ProductsPage() {
             </button>
           ))}
         </div>
+        {category !== "jus" && cuisines.length > 0 && (
+          <select
+            aria-label="Type de cuisine"
+            value={cuisine}
+            onChange={(e) => setCuisine(e.target.value)}
+            className="h-10 rounded-md border border-input bg-card px-3 text-sm"
+          >
+            <option value="all">Toutes les cuisines</option>
+            {cuisines.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+            <option value="none">Sans type</option>
+          </select>
+        )}
       </div>
 
       <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
@@ -270,6 +306,11 @@ export function ProductsPage() {
                   <p className="flex items-center gap-2 font-semibold">
                     <span className="truncate">{product.name}</span>
                     <TonePill>{CATEGORY_LABELS[product.category] ?? product.category}</TonePill>
+                    {cuisineName(product.dish_category_id) && (
+                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                        {cuisineName(product.dish_category_id)}
+                      </span>
+                    )}
                   </p>
                   {product.description && (
                     <p className="line-clamp-1 text-sm text-muted-foreground">
@@ -420,6 +461,24 @@ export function ProductsPage() {
                 </div>
                 {draft.category !== "jus" && (
                   <div className="space-y-2">
+                    <Label htmlFor="cuisine">Type de cuisine</Label>
+                    <select
+                      id="cuisine"
+                      value={draft.dish_category_id}
+                      onChange={(e) => setDraft({ ...draft, dish_category_id: e.target.value })}
+                      className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                    >
+                      <option value="">— Aucun —</option>
+                      {cuisines.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {draft.category !== "jus" && (
+                  <div className="space-y-2">
                     <Label htmlFor="price">Prix de base (FCFA)</Label>
                     <Input
                       id="price"
@@ -512,6 +571,7 @@ export function ProductsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <CuisinesDialog open={managing} onClose={() => setManaging(false)} />
     </div>
   );
 }
@@ -535,5 +595,107 @@ function JuiceVariantsSummary({ variants }: { variants: ProductVariant[] }) {
         );
       })}
     </ul>
+  );
+}
+
+/** Ajouter, renommer, supprimer les types de cuisine (sénégalaise, marocaine…). */
+function CuisinesDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const { data: cuisines = [] } = useQuery(dishCategoriesQuery());
+  const [name, setName] = useState("");
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ["dish_categories"] });
+    queryClient.invalidateQueries({ queryKey: ["menu"] });
+  };
+  const add = useMutation({
+    mutationFn: async () => {
+      const { error } = await db
+        .from("dish_categories")
+        .insert({ name: name.trim(), sort_order: cuisines.length + 1 });
+      if (error)
+        throw new Error(
+          error.message.includes("duplicate") ? "Ce type existe déjà." : error.message,
+        );
+    },
+    onSuccess: () => {
+      invalidate();
+      setName("");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const update = useMutation({
+    mutationFn: async (input: { id: string; name: string }) => {
+      const { error } = await db
+        .from("dish_categories")
+        .update({ name: input.name })
+        .eq("id", input.id);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: invalidate,
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const remove = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await db.from("dish_categories").delete().eq("id", id);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      invalidate();
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Types de cuisine</DialogTitle>
+        </DialogHeader>
+        <ul className="max-h-72 space-y-2 overflow-y-auto">
+          {cuisines.map((c) => (
+            <li key={c.id} className="flex items-center gap-2">
+              <Input
+                defaultValue={c.name}
+                aria-label={`Nom du type ${c.name}`}
+                onBlur={(e) => {
+                  const value = e.target.value.trim();
+                  if (value && value !== c.name) update.mutate({ id: c.id, name: value });
+                }}
+              />
+              <Button
+                size="icon"
+                variant="ghost"
+                aria-label={`Supprimer ${c.name}`}
+                className="text-muted-foreground hover:text-destructive"
+                onClick={() => remove.mutate(c.id)}
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            </li>
+          ))}
+        </ul>
+        <form
+          className="flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (name.trim()) add.mutate();
+          }}
+        >
+          <Input
+            placeholder="Ex. Libanaise"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <Button type="submit" disabled={!name.trim() || add.isPending}>
+            <Plus /> Ajouter
+          </Button>
+        </form>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Fermer
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

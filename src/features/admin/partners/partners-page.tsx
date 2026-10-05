@@ -1,10 +1,11 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Banknote,
   Building2,
   CheckCircle2,
   Download,
+  Mail,
   Tags,
   Trash2,
   FileSpreadsheet,
@@ -36,6 +37,7 @@ import { SendMessageButton } from "@/features/admin/subscriptions/send-message-b
 import {
   cutoffLabel,
   deliveryNotesQuery,
+  billingPeriod,
   dueDateFrom,
   invoiceRemaining,
   isOverdue,
@@ -62,6 +64,8 @@ import {
 } from "@/features/admin/partners/print";
 import { downloadFile } from "@/features/admin/orders/export-orders";
 import { PaymentDialog } from "@/features/admin/partners/payment-dialog";
+import { emailPartnerInvoice } from "@/features/admin/partners/invoice-email.functions";
+import { useServerFn } from "@tanstack/react-start";
 import { Checkbox } from "@ui/components/ui/checkbox";
 import {
   downloadEmployeesTemplate,
@@ -88,10 +92,22 @@ type Tab = (typeof TABS)[number][0];
 export function PartnersPage() {
   const [tab, setTab] = useState<Tab>("kpi");
   const { data: partners = [] } = useQuery(partnersQuery());
+  // Le bouton du haut ouvre la fiche « Nouvelle entreprise » de l'onglet Entreprises.
+  const [createSignal, setCreateSignal] = useState(0);
   return (
     <div className="space-y-6">
       <PageHeader
         title="Entreprises partenaires"
+        actions={
+          <Button
+            onClick={() => {
+              setTab("entreprises");
+              setCreateSignal((n) => n + 1);
+            }}
+          >
+            <Plus className="size-4" /> Ajouter une entreprise
+          </Button>
+        }
         description="Les employés enrôlés commandent sans payer ; chaque livraison donne un bon de commande, regroupés en facture à la fin du mois."
       />
       <div role="tablist" className="flex w-fit flex-wrap rounded-lg bg-muted p-1">
@@ -114,7 +130,7 @@ export function PartnersPage() {
         ))}
       </div>
       {tab === "kpi" && <KpiTab partners={partners} />}
-      {tab === "entreprises" && <PartnersTab partners={partners} />}
+      {tab === "entreprises" && <PartnersTab partners={partners} createSignal={createSignal} />}
       {tab === "bons" && <NotesTab partners={partners} />}
       {tab === "factures" && <InvoicesTab partners={partners} />}
     </div>
@@ -354,6 +370,7 @@ type PartnerDraft = {
   active: boolean;
   logo_url: string;
   payment_terms_days: string;
+  billing_day: string;
 };
 
 const EMPTY_PARTNER: PartnerDraft = {
@@ -368,9 +385,10 @@ const EMPTY_PARTNER: PartnerDraft = {
   active: true,
   logo_url: "",
   payment_terms_days: "30",
+  billing_day: "",
 };
 
-function PartnersTab({ partners }: { partners: Partner[] }) {
+function PartnersTab({ partners, createSignal }: { partners: Partner[]; createSignal: number }) {
   const queryClient = useQueryClient();
   const [toDelete, setToDelete] = useState<Partner | null>(null);
   const remove = useMutation({
@@ -389,6 +407,9 @@ function PartnersTab({ partners }: { partners: Partner[] }) {
   const { data: employees = [] } = useQuery(employeesQuery());
   const [selected, setSelected] = useState<string | null>(null);
   const [draft, setDraft] = useState<PartnerDraft | null>(null);
+  useEffect(() => {
+    if (createSignal > 0) setDraft(EMPTY_PARTNER);
+  }, [createSignal]);
   const current = partners.find((p) => p.id === selected) ?? partners[0] ?? null;
 
   const save = useMutation({
@@ -405,6 +426,7 @@ function PartnersTab({ partners }: { partners: Partner[] }) {
         active: value.active,
         logo_url: value.logo_url || null,
         payment_terms_days: Number(value.payment_terms_days) || 0,
+        billing_day: value.billing_day ? Number(value.billing_day) : null,
       };
       const { data, error } = value.id
         ? await db.from("partners").update(payload).eq("id", value.id).select("id").single()
@@ -510,6 +532,7 @@ function PartnersTab({ partners }: { partners: Partner[] }) {
                   active: current.active,
                   logo_url: current.logo_url ?? "",
                   payment_terms_days: String(current.payment_terms_days),
+                  billing_day: current.billing_day ? String(current.billing_day) : "",
                 })
               }
             >
@@ -594,13 +617,40 @@ function PartnerDialog({
               {field("contact_name", "Contact (nom)")}
               {field("contact_phone", "Contact (téléphone)", { inputMode: "tel" })}
             </div>
-            {field("contact_email", "Contact (email)", { type: "email" })}
-            {field("delivery_address", "Adresse de livraison")}
-            {field("payment_terms_days", "Délai de paiement des factures (jours)", {
-              type: "number",
-              min: 0,
-              max: 120,
+            {field("contact_email", "Email du responsable (reçoit les factures)", {
+              type: "email",
             })}
+            {field("delivery_address", "Adresse de livraison")}
+            <div className="grid gap-4 sm:grid-cols-2">
+              {field("payment_terms_days", "Délai de paiement (jours)", {
+                type: "number",
+                min: 0,
+                max: 120,
+              })}
+              <div className="space-y-2">
+                <Label htmlFor="pa-billing">Envoi automatique de la facture</Label>
+                <select
+                  id="pa-billing"
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  value={draft.billing_day}
+                  onChange={(e) => setDraft({ ...draft, billing_day: e.target.value })}
+                >
+                  <option value="">Non (j'envoie moi-même)</option>
+                  {Array.from({ length: 28 }, (_, i) => (
+                    <option key={i + 1} value={String(i + 1)}>
+                      Le {i + 1} de chaque mois
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            {draft.billing_day && (
+              <p className="text-xs text-muted-foreground">
+                Le {draft.billing_day} de chaque mois, la facture (du{" "}
+                {Number(draft.billing_day) + 1} du mois précédent au {draft.billing_day}) part par
+                email au responsable : {draft.contact_email || "ajoutez son email ci-dessus"}.
+              </p>
+            )}
             <div className="grid gap-4 sm:grid-cols-3">
               {field("delivery_time", "Heure de livraison", { type: "time" })}
               {field("cutoff_time", "Heure limite", { type: "time" })}
@@ -1557,9 +1607,38 @@ function InvoicesTab({ partners }: { partners: Partner[] }) {
   const queryClient = useQueryClient();
   const [month, setMonth] = useState(todayISO().slice(0, 7));
   const { from, to } = monthBounds(month);
-  const { data: lines = [] } = useQuery(partnerLinesQuery(from, to));
+  // Large plage (mois précédent inclus) : une entreprise avec un jour d'envoi (ex. le 24) est
+  // facturée du 25 du mois précédent au 24.
+  const wideFrom = (() => {
+    const [y, m] = month.split("-").map(Number);
+    return new Date(Date.UTC(y!, m! - 2, 1)).toISOString().slice(0, 10);
+  })();
+  const { data: allLines = [] } = useQuery(partnerLinesQuery(wideFrom, to));
   const { data: invoices = [] } = useQuery(invoicesQuery());
+  const lines = useMemo(
+    () =>
+      allLines.filter((l) => {
+        const partner = partners.find((p) => p.id === l.partner_id);
+        if (!partner) return false;
+        const period = billingPeriod(partner, month);
+        return l.day_date >= period.from && l.day_date <= period.to;
+      }),
+    [allLines, partners, month],
+  );
   const byPartner = useMemo(() => groupByPartner(lines), [lines]);
+  const emailInvoice = useServerFn(emailPartnerInvoice);
+  const sendEmail = useMutation({
+    mutationFn: (partner: Partner) => {
+      const period = billingPeriod(partner, month);
+      return emailInvoice({ data: { partnerId: partner.id, from: period.from, to: period.to } });
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["partner_invoices"] });
+      if ("sent" in result && result.sent) toast.success(`Facture envoyée à ${result.to}`);
+      else toast.info("reason" in result ? String(result.reason) : "Rien à envoyer");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   const createInvoice = useMutation({
     mutationFn: async (input: { partner: Partner; total: number }) => {
@@ -1573,6 +1652,8 @@ function InvoicesTab({ partners }: { partners: Partner[] }) {
           status: "envoyee",
           sent_at: new Date().toISOString(),
           due_date: dueDateFrom(todayISO(), input.partner.payment_terms_days),
+          period_start: billingPeriod(input.partner, month).from,
+          period_end: billingPeriod(input.partner, month).to,
         },
         { onConflict: "partner_id,month" },
       );
@@ -1632,6 +1713,10 @@ function InvoicesTab({ partners }: { partners: Partner[] }) {
             <div className="min-w-0 flex-1">
               <p className="font-semibold">{partner.name}</p>
               <p className="text-sm text-muted-foreground">
+                {(() => {
+                  const period = billingPeriod(partner, month);
+                  return `Du ${formatDay(period.from).toLowerCase()} au ${formatDay(period.to).toLowerCase()} · `;
+                })()}
                 {notesCount} bon{notesCount > 1 ? "s" : ""} de commande ·{" "}
                 {partnerLines.reduce((s, l) => s + l.quantity, 0)} repas
               </p>
@@ -1665,6 +1750,17 @@ function InvoicesTab({ partners }: { partners: Partner[] }) {
                 {formatDay(invoice.due_date).toLowerCase()}
               </span>
             )}
+            {invoice?.emailed_at && (
+              <span className="text-xs text-muted-foreground">
+                Envoyée par email le {new Date(invoice.emailed_at).toLocaleDateString("fr-FR")}
+                {invoice.email_to ? ` à ${invoice.email_to}` : ""}
+              </span>
+            )}
+            {partner.billing_day && (
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                Envoi automatique le {partner.billing_day}
+              </span>
+            )}
             {invoice && invoice.total !== total && (
               <span className="text-xs text-amber-700">
                 Montant changé depuis l'envoi ({formatPrice(invoice.total)})
@@ -1685,6 +1781,22 @@ function InvoicesTab({ partners }: { partners: Partner[] }) {
               >
                 <FileSpreadsheet className="size-4" /> Excel
               </Button>
+              {invoice?.status !== "payee" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={sendEmail.isPending || !partner.contact_email}
+                  title={
+                    partner.contact_email
+                      ? `Envoyer à ${partner.contact_email}`
+                      : "Ajoutez l'email du responsable dans la fiche de l'entreprise"
+                  }
+                  onClick={() => sendEmail.mutate(partner)}
+                >
+                  <Mail className="size-4" />{" "}
+                  {invoice?.emailed_at ? "Renvoyer par email" : "Envoyer par email"}
+                </Button>
+              )}
               {invoice?.status !== "payee" && (
                 <Button
                   size="sm"

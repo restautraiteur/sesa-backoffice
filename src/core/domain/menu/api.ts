@@ -25,6 +25,8 @@ export type MenuRow = {
   close_time: string;
   is_active: boolean;
   state: ProductState;
+  /** Type de cuisine du plat (sénégalaise, marocaine…), s'il est renseigné. */
+  dish_category: string | null;
 };
 
 export const publicMenuQuery = () =>

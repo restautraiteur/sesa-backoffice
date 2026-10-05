@@ -16,6 +16,8 @@ export type Partner = {
   logo_url: string | null;
   /** Délai de paiement des factures, en jours. */
   payment_terms_days: number;
+  /** Jour d'envoi automatique de la facture par email (null = manuel, mois civil). */
+  billing_day: number | null;
 };
 
 export type PartnerEmployee = {
@@ -50,6 +52,10 @@ export type PartnerInvoice = {
   sent_at: string;
   paid_at: string | null;
   due_date: string | null;
+  period_start: string | null;
+  period_end: string | null;
+  emailed_at: string | null;
+  email_to: string | null;
 };
 
 /** Ligne de commande d'un employé (pour les bons et les factures). */
@@ -220,4 +226,17 @@ export function dueDateFrom(today: string, days: number) {
   const d = new Date(`${today}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Période facturée pour le mois « AAAA-MM » : mois civil, ou, avec un jour d'envoi (ex. 24),
+ * du 25 du mois précédent au 24 du mois.
+ */
+export function billingPeriod(partner: Pick<Partner, "billing_day">, month: string) {
+  const [y, m] = month.split("-").map(Number);
+  const day = partner.billing_day;
+  if (!day) return monthBounds(month);
+  const end = new Date(Date.UTC(y!, m! - 1, day));
+  const start = new Date(Date.UTC(y!, m! - 2, day + 1));
+  return { from: start.toISOString().slice(0, 10), to: end.toISOString().slice(0, 10) };
 }

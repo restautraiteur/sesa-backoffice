@@ -128,6 +128,27 @@ export type Database = {
           },
         ];
       };
+      dish_categories: {
+        Row: {
+          created_at: string;
+          id: string;
+          name: string;
+          sort_order: number;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          name: string;
+          sort_order?: number;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          name?: string;
+          sort_order?: number;
+        };
+        Relationships: [];
+      };
       ingredient_formats: {
         Row: {
           created_at: string;
@@ -287,6 +308,8 @@ export type Database = {
           last_name: string;
           order_type: string;
           paid_amount: number;
+          partner_employee_id: string | null;
+          partner_id: string | null;
           paydunya_token: string | null;
           payment_method: string | null;
           payment_reference: string | null;
@@ -310,6 +333,8 @@ export type Database = {
           last_name: string;
           order_type?: string;
           paid_amount?: number;
+          partner_employee_id?: string | null;
+          partner_id?: string | null;
           paydunya_token?: string | null;
           payment_method?: string | null;
           payment_reference?: string | null;
@@ -333,6 +358,8 @@ export type Database = {
           last_name?: string;
           order_type?: string;
           paid_amount?: number;
+          partner_employee_id?: string | null;
+          partner_id?: string | null;
           paydunya_token?: string | null;
           payment_method?: string | null;
           payment_reference?: string | null;
@@ -346,6 +373,20 @@ export type Database = {
         };
         Relationships: [
           {
+            foreignKeyName: "orders_partner_employee_id_fkey";
+            columns: ["partner_employee_id"];
+            isOneToOne: false;
+            referencedRelation: "partner_employees";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "orders_partner_id_fkey";
+            columns: ["partner_id"];
+            isOneToOne: false;
+            referencedRelation: "partners";
+            referencedColumns: ["id"];
+          },
+          {
             foreignKeyName: "orders_subscription_id_fkey";
             columns: ["subscription_id"];
             isOneToOne: false;
@@ -353,6 +394,261 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
+      };
+      partner_delivery_notes: {
+        Row: {
+          created_at: string;
+          delivered_at: string | null;
+          delivery_date: string;
+          id: string;
+          partner_id: string;
+          signed_by: string | null;
+          status: string;
+        };
+        Insert: {
+          created_at?: string;
+          delivered_at?: string | null;
+          delivery_date: string;
+          id?: string;
+          partner_id: string;
+          signed_by?: string | null;
+          status?: string;
+        };
+        Update: {
+          created_at?: string;
+          delivered_at?: string | null;
+          delivery_date?: string;
+          id?: string;
+          partner_id?: string;
+          signed_by?: string | null;
+          status?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "partner_delivery_notes_partner_id_fkey";
+            columns: ["partner_id"];
+            isOneToOne: false;
+            referencedRelation: "partners";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      partner_employees: {
+        Row: {
+          active: boolean;
+          created_at: string;
+          email: string;
+          full_name: string;
+          id: string;
+          partner_id: string;
+          phone: string;
+          pin: string;
+          pin_failures: number;
+          updated_at: string;
+        };
+        Insert: {
+          active?: boolean;
+          created_at?: string;
+          email: string;
+          full_name: string;
+          id?: string;
+          partner_id: string;
+          phone: string;
+          pin?: string;
+          pin_failures?: number;
+          updated_at?: string;
+        };
+        Update: {
+          active?: boolean;
+          created_at?: string;
+          email?: string;
+          full_name?: string;
+          id?: string;
+          partner_id?: string;
+          phone?: string;
+          pin?: string;
+          pin_failures?: number;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "partner_employees_partner_id_fkey";
+            columns: ["partner_id"];
+            isOneToOne: false;
+            referencedRelation: "partners";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      partner_invoices: {
+        Row: {
+          amount_paid: number;
+          created_at: string;
+          due_date: string | null;
+          email_to: string | null;
+          emailed_at: string | null;
+          id: string;
+          month: string;
+          paid_at: string | null;
+          partner_id: string;
+          period_end: string | null;
+          period_start: string | null;
+          reference: string;
+          sent_at: string;
+          status: string;
+          total: number;
+        };
+        Insert: {
+          amount_paid?: number;
+          created_at?: string;
+          due_date?: string | null;
+          email_to?: string | null;
+          emailed_at?: string | null;
+          id?: string;
+          month: string;
+          paid_at?: string | null;
+          partner_id: string;
+          period_end?: string | null;
+          period_start?: string | null;
+          reference: string;
+          sent_at?: string;
+          status?: string;
+          total?: number;
+        };
+        Update: {
+          amount_paid?: number;
+          created_at?: string;
+          due_date?: string | null;
+          email_to?: string | null;
+          emailed_at?: string | null;
+          id?: string;
+          month?: string;
+          paid_at?: string | null;
+          partner_id?: string;
+          period_end?: string | null;
+          period_start?: string | null;
+          reference?: string;
+          sent_at?: string;
+          status?: string;
+          total?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "partner_invoices_partner_id_fkey";
+            columns: ["partner_id"];
+            isOneToOne: false;
+            referencedRelation: "partners";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      partner_payments: {
+        Row: {
+          amount: number;
+          created_at: string;
+          id: string;
+          invoice_id: string | null;
+          method: string;
+          note: string | null;
+          paid_on: string;
+          partner_id: string;
+          reference: string | null;
+        };
+        Insert: {
+          amount: number;
+          created_at?: string;
+          id?: string;
+          invoice_id?: string | null;
+          method?: string;
+          note?: string | null;
+          paid_on?: string;
+          partner_id: string;
+          reference?: string | null;
+        };
+        Update: {
+          amount?: number;
+          created_at?: string;
+          id?: string;
+          invoice_id?: string | null;
+          method?: string;
+          note?: string | null;
+          paid_on?: string;
+          partner_id?: string;
+          reference?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "partner_payments_invoice_id_fkey";
+            columns: ["invoice_id"];
+            isOneToOne: false;
+            referencedRelation: "partner_invoices";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "partner_payments_partner_id_fkey";
+            columns: ["partner_id"];
+            isOneToOne: false;
+            referencedRelation: "partners";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      partners: {
+        Row: {
+          active: boolean;
+          billing_day: number | null;
+          contact_email: string | null;
+          contact_name: string | null;
+          contact_phone: string | null;
+          created_at: string;
+          cutoff_day_offset: number;
+          cutoff_time: string;
+          delivery_address: string | null;
+          delivery_time: string;
+          id: string;
+          logo_url: string | null;
+          name: string;
+          notes: string | null;
+          payment_terms_days: number;
+          updated_at: string;
+        };
+        Insert: {
+          active?: boolean;
+          billing_day?: number | null;
+          contact_email?: string | null;
+          contact_name?: string | null;
+          contact_phone?: string | null;
+          created_at?: string;
+          cutoff_day_offset?: number;
+          cutoff_time?: string;
+          delivery_address?: string | null;
+          delivery_time?: string;
+          id?: string;
+          logo_url?: string | null;
+          name: string;
+          notes?: string | null;
+          payment_terms_days?: number;
+          updated_at?: string;
+        };
+        Update: {
+          active?: boolean;
+          billing_day?: number | null;
+          contact_email?: string | null;
+          contact_name?: string | null;
+          contact_phone?: string | null;
+          created_at?: string;
+          cutoff_day_offset?: number;
+          cutoff_time?: string;
+          delivery_address?: string | null;
+          delivery_time?: string;
+          id?: string;
+          logo_url?: string | null;
+          name?: string;
+          notes?: string | null;
+          payment_terms_days?: number;
+          updated_at?: string;
+        };
+        Relationships: [];
       };
       product_variants: {
         Row: {
@@ -554,6 +850,7 @@ export type Database = {
           category: string;
           created_at: string;
           description: string | null;
+          dish_category_id: string | null;
           id: string;
           name: string;
           photo_url: string | null;
@@ -564,6 +861,7 @@ export type Database = {
           category?: string;
           created_at?: string;
           description?: string | null;
+          dish_category_id?: string | null;
           id?: string;
           name: string;
           photo_url?: string | null;
@@ -574,11 +872,20 @@ export type Database = {
           category?: string;
           created_at?: string;
           description?: string | null;
+          dish_category_id?: string | null;
           id?: string;
           name?: string;
           photo_url?: string | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "products_dish_category_id_fkey";
+            columns: ["dish_category_id"];
+            isOneToOne: false;
+            referencedRelation: "dish_categories";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       purchases: {
         Row: {
@@ -979,6 +1286,7 @@ export type Database = {
           day_open: boolean | null;
           day_product_id: string | null;
           description: string | null;
+          dish_category: string | null;
           end_date: string | null;
           is_active: boolean | null;
           name: string | null;
@@ -1015,8 +1323,26 @@ export type Database = {
         Returns: boolean;
       };
       is_admin: { Args: never; Returns: boolean };
-      lookup_subscriptions: { Args: { p_phone: string }; Returns: Json };
+      list_partners: {
+        Args: never;
+        Returns: {
+          id: string;
+          name: string;
+        }[];
+      };
+      lookup_subscriptions:
+        | { Args: { p_phone: string }; Returns: Json }
+        | { Args: { p_phone: string; p_pin: string }; Returns: Json };
       place_order: { Args: { p_customer: Json; p_items: Json }; Returns: Json };
+      place_partner_order: {
+        Args: {
+          p_items: Json;
+          p_partner: string;
+          p_phone: string;
+          p_pin: string;
+        };
+        Returns: Json;
+      };
       subscription_by_pin: {
         Args: { p_phone: string; p_pin: string };
         Returns: string;

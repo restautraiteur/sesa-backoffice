@@ -380,6 +380,9 @@ export function WeeksPage() {
                                 className={cn("block truncate", !item.is_active && "line-through")}
                               >
                                 {item.name}
+                                {item.dish_category && (
+                                  <span className="text-primary/70"> · {item.dish_category}</span>
+                                )}
                               </span>
                             ))}
                             {items.length > 3 && (

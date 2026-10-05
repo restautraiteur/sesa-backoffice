@@ -43,6 +43,7 @@ import { EmptyState, PageHeader, ProductThumb } from "@/features/admin/component
 import { cn } from "@core/lib/utils";
 import { CLIENT } from "@/config/client";
 import { PartnersTodayPanel } from "@/features/admin/partners/partners-today";
+import { MonthOverview } from "@/features/admin/dashboard/month-overview";
 import { productionLogsQuery } from "@/features/admin/simulation/api";
 import { ProductionDialog } from "@/features/admin/simulation/components/production-dialog";
 
@@ -315,6 +316,15 @@ export function Dashboard() {
           }
         />
       </div>
+
+      <MonthOverview
+        menu={menu}
+        items={items}
+        orders={orders}
+        day={day}
+        today={today}
+        onPick={setDay}
+      />
 
       {CLIENT.partners && <PartnersTodayPanel day={day} />}
 
