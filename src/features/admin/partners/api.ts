@@ -84,13 +84,16 @@ export const employeesQuery = () =>
   queryOptions({
     queryKey: ["partner_employees"],
     queryFn: () =>
-      run<PartnerEmployee[]>(db.from("partner_employees").select("*").order("full_name")),
+      runAll<PartnerEmployee>(() =>
+        db.from("partner_employees").select("*").order("full_name").order("id"),
+      ),
   });
 
 export const deliveryNotesQuery = () =>
   queryOptions({
     queryKey: ["partner_delivery_notes"],
-    queryFn: () => run<DeliveryNote[]>(db.from("partner_delivery_notes").select("*")),
+    queryFn: () =>
+      runAll<DeliveryNote>(() => db.from("partner_delivery_notes").select("*").order("id")),
   });
 
 export const invoicesQuery = () =>
@@ -218,8 +221,8 @@ export const paymentsQuery = () =>
   queryOptions({
     queryKey: ["partner_payments"],
     queryFn: () =>
-      run<PartnerPayment[]>(
-        db.from("partner_payments").select("*").order("paid_on", { ascending: false }),
+      runAll<PartnerPayment>(() =>
+        db.from("partner_payments").select("*").order("paid_on", { ascending: false }).order("id"),
       ),
   });
 

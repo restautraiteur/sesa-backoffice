@@ -1,5 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
-import { db, run } from "@core/lib/db";
+import { db, run, runAll } from "@core/lib/db";
 
 export type Week = {
   id: string;
@@ -28,5 +28,5 @@ export const weeksQuery = () =>
 export const daysQuery = () =>
   queryOptions({
     queryKey: ["days"],
-    queryFn: () => run<Day[]>(db.from("days").select("*").order("date")),
+    queryFn: () => runAll<Day>(() => db.from("days").select("*").order("date").order("id")),
   });

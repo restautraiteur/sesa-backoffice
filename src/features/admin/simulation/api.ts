@@ -1,5 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
-import { db, run } from "@core/lib/db";
+import { db, run, runAll } from "@core/lib/db";
 
 /** Unités de base d'un ingrédient : tout est converti dans cette unité. */
 export const BASE_UNITS = [
@@ -117,10 +117,14 @@ export const productionLogsQuery = () =>
     queryKey: ["production_logs"],
     queryFn: async () => {
       const [logs, items] = await Promise.all([
-        run<Omit<ProductionLog, "items">[]>(
-          db.from("production_logs").select("*").order("cooked_on", { ascending: false }),
+        runAll<Omit<ProductionLog, "items">>(() =>
+          db
+            .from("production_logs")
+            .select("*")
+            .order("cooked_on", { ascending: false })
+            .order("id"),
         ),
-        run<ProductionItem[]>(db.from("production_log_items").select("*")),
+        runAll<ProductionItem>(() => db.from("production_log_items").select("*").order("id")),
       ]);
       return logs.map((log) => ({
         ...log,

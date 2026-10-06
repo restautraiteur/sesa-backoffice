@@ -1,5 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
-import { db, run } from "@core/lib/db";
+import { db, run, runAll } from "@core/lib/db";
 import { todayISO } from "@core/lib/format";
 
 export type ProductState = "disponible" | "epuise" | "ferme" | "desactive" | "jour_ferme";
@@ -42,5 +42,8 @@ export const publicMenuQuery = () =>
 export const adminMenuQuery = () =>
   queryOptions({
     queryKey: ["menu", "admin"],
-    queryFn: () => run<MenuRow[]>(db.from("menu_view").select("*").order("day_date")),
+    queryFn: () =>
+      runAll<MenuRow>(() =>
+        db.from("menu_view").select("*").order("day_date").order("day_product_id"),
+      ),
   });

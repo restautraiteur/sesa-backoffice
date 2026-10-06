@@ -10,7 +10,9 @@ import {
   Receipt,
   Scissors,
   Search,
+  SlidersHorizontal,
   Tags,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@ui/components/ui/button";
@@ -74,11 +76,24 @@ export function OrdersPage() {
   const [day, setDay] = useState("");
   // Entreprises partenaires : « all », « particuliers » ou l'identifiant d'une entreprise.
   const [partnerFilter, setPartnerFilter] = useState("all");
+  // Filtres avancés : type, paiement, plat, période de livraison.
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [paymentFilter, setPaymentFilter] = useState("all");
+  const [dishFilter, setDishFilter] = useState("");
+  const [range, setRange] = useState({ from: "", to: "" });
   const { data: partners = [] } = useQuery({ ...partnersQuery(), enabled: CLIENT.partners });
   const [expanded, setExpanded] = useState<string | null>(null);
   const [pendingCancel, setPendingCancel] = useState<Order | null>(null);
 
   const days = useMemo(() => [...new Set(items.map((i) => i.day_date))].sort(), [items]);
+  const dishes = useMemo(
+    () =>
+      [...new Set(items.filter((i) => i.category !== "jus").map((i) => i.product_name))].sort(
+        (a, b) => a.localeCompare(b, "fr"),
+      ),
+    [items],
+  );
+  const partnerNames = useMemo(() => new Map(partners.map((p) => [p.id, p.name])), [partners]);
 
   const itemsByOrder = useMemo(() => {
     const map = new Map<string, OrderItem[]>();
@@ -86,29 +101,74 @@ export function OrdersPage() {
     return map;
   }, [items]);
 
-  // Commandes filtrées par jour et recherche, avant le filtre de statut (pour compter par statut).
+  // Commandes filtrées (jour, période, entreprise, type, paiement, plat, recherche), avant le filtre
+  // de statut (pour compter par statut).
   const base = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    const dayOrderIds = day
-      ? new Set(items.filter((i) => i.day_date === day).map((i) => i.order_id))
-      : null;
+    const term = search
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+    const digits = term.replace(/\D/g, "");
+    const norm = (v: string | null | undefined) =>
+      (v ?? "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
     return orders.filter((order) => {
-      if (dayOrderIds && !dayOrderIds.has(order.id)) return false;
+      const lines = itemsByOrder.get(order.id) ?? [];
+      if (day && !lines.some((i) => i.day_date === day)) return false;
+      if (range.from && !lines.some((i) => i.day_date >= range.from)) return false;
+      if (range.to && !lines.some((i) => i.day_date <= range.to)) return false;
+      if (partnerFilter === "entreprises" && !order.partner_id) return false;
       if (partnerFilter === "particuliers" && order.partner_id) return false;
       if (
-        partnerFilter !== "all" &&
-        partnerFilter !== "particuliers" &&
+        !["all", "entreprises", "particuliers"].includes(partnerFilter) &&
         order.partner_id !== partnerFilter
       )
         return false;
+      if (typeFilter === "immediate" && (order.order_type !== "immediate" || order.partner_id))
+        return false;
+      if (typeFilter === "precommande" && (order.order_type !== "precommande" || order.partner_id))
+        return false;
+      if (typeFilter === "abonnement" && !order.subscription_id) return false;
+      if (typeFilter === "entreprise" && !order.partner_id) return false;
+      if (paymentFilter !== "all" && order.payment_status !== paymentFilter) return false;
+      if (dishFilter && !lines.some((i) => i.product_name === dishFilter)) return false;
       if (!term) return true;
+      const haystack = [
+        order.reference,
+        order.first_name,
+        order.last_name,
+        `${order.first_name} ${order.last_name}`,
+        order.address,
+        order.address_extra,
+        order.landmark,
+        order.instructions,
+        order.payment_reference,
+        order.partner_id ? partnerNames.get(order.partner_id) : "",
+        ...lines.map((i) => i.product_name),
+      ]
+        .map(norm)
+        .join(" | ");
       return (
-        order.reference.toLowerCase().includes(term) ||
-        order.phone.toLowerCase().includes(term) ||
-        `${order.first_name} ${order.last_name}`.toLowerCase().includes(term)
+        haystack.includes(term) ||
+        (digits.length >= 3 &&
+          (order.phone.replace(/\D/g, "").includes(digits) || String(order.total) === digits))
       );
     });
-  }, [orders, items, search, day, partnerFilter]);
+  }, [
+    orders,
+    itemsByOrder,
+    search,
+    day,
+    range,
+    partnerFilter,
+    typeFilter,
+    paymentFilter,
+    dishFilter,
+    partnerNames,
+  ]);
 
   /** Étiquettes à découper : commandes d'entreprises du jour choisi, regroupées par entreprise. */
   function printLabels() {
@@ -188,8 +248,29 @@ export function OrdersPage() {
   const revenue = filtered
     .filter((o) => o.status !== "annulee")
     .reduce((sum, o) => sum + o.total, 0);
+  const advancedCount = [
+    typeFilter !== "all",
+    paymentFilter !== "all",
+    dishFilter !== "",
+    range.from !== "" || range.to !== "",
+  ].filter(Boolean).length;
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const filtersActive =
-    search.trim() !== "" || day !== "" || status !== "all" || partnerFilter !== "all";
+    search.trim() !== "" ||
+    day !== "" ||
+    status !== "all" ||
+    partnerFilter !== "all" ||
+    advancedCount > 0;
+  const resetFilters = () => {
+    setSearch("");
+    setDay("");
+    setStatus("all");
+    setPartnerFilter("all");
+    setTypeFilter("all");
+    setPaymentFilter("all");
+    setDishFilter("");
+    setRange({ from: "", to: "" });
+  };
 
   return (
     <div className="space-y-6">
@@ -273,7 +354,7 @@ export function OrdersPage() {
             <Input
               type="search"
               aria-label="Rechercher une commande"
-              placeholder="Référence, nom ou téléphone"
+              placeholder="Client, téléphone, référence, plat, adresse, entreprise…"
               value={search}
               maxLength={80}
               onChange={(e) => setSearch(e.target.value)}
@@ -295,12 +376,13 @@ export function OrdersPage() {
           </select>
           {CLIENT.partners && (
             <select
-              aria-label="Client"
+              aria-label="Entreprise partenaire"
               value={partnerFilter}
               onChange={(e) => setPartnerFilter(e.target.value)}
               className="h-10 rounded-md border border-input bg-card px-3 text-sm"
             >
-              <option value="all">Tous les clients</option>
+              <option value="all">Entreprise : toutes les commandes</option>
+              <option value="entreprises">Toutes les entreprises</option>
               <option value="particuliers">Particuliers</option>
               {partners.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -309,7 +391,95 @@ export function OrdersPage() {
               ))}
             </select>
           )}
+          <Button
+            variant="outline"
+            className="h-10 bg-card"
+            aria-expanded={showAdvanced}
+            onClick={() => setShowAdvanced((v) => !v)}
+          >
+            <SlidersHorizontal className="size-4" /> Filtres
+            {advancedCount > 0 && (
+              <span className="rounded-full bg-primary px-1.5 text-xs text-primary-foreground">
+                {advancedCount}
+              </span>
+            )}
+          </Button>
+          {filtersActive && (
+            <Button variant="ghost" className="h-10" onClick={resetFilters}>
+              <X className="size-4" /> Effacer
+            </Button>
+          )}
         </div>
+
+        {(showAdvanced || advancedCount > 0) && (
+          <div className="grid gap-3 rounded-xl border border-border bg-card p-3 sm:grid-cols-2 lg:grid-cols-4">
+            <label className="space-y-1 text-xs font-medium text-muted-foreground">
+              Type de commande
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm text-foreground"
+              >
+                <option value="all">Tous les types</option>
+                <option value="immediate">Commande du jour</option>
+                <option value="precommande">Précommande</option>
+                {CLIENT.partners && <option value="entreprise">Entreprise partenaire</option>}
+                <option value="abonnement">Abonnement</option>
+              </select>
+            </label>
+            <label className="space-y-1 text-xs font-medium text-muted-foreground">
+              Paiement
+              <select
+                value={paymentFilter}
+                onChange={(e) => setPaymentFilter(e.target.value)}
+                className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm text-foreground"
+              >
+                <option value="all">Tous les paiements</option>
+                {[...PAYMENT_STATUSES, ...(CLIENT.partners ? ["facture_entreprise"] : [])].map(
+                  (value) => (
+                    <option key={value} value={value}>
+                      {PAYMENT_STATUS_LABELS[value] ?? value}
+                    </option>
+                  ),
+                )}
+              </select>
+            </label>
+            <label className="space-y-1 text-xs font-medium text-muted-foreground">
+              Plat
+              <select
+                value={dishFilter}
+                onChange={(e) => setDishFilter(e.target.value)}
+                className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm text-foreground"
+              >
+                <option value="">Tous les plats</option>
+                {dishes.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="space-y-1 text-xs font-medium text-muted-foreground">
+              Livraison du … au …
+              <div className="flex gap-2">
+                <Input
+                  type="date"
+                  aria-label="Livraison à partir du"
+                  value={range.from}
+                  onChange={(e) => setRange({ ...range, from: e.target.value })}
+                  className="h-9 bg-background"
+                />
+                <Input
+                  type="date"
+                  aria-label="Livraison jusqu'au"
+                  value={range.to}
+                  onChange={(e) => setRange({ ...range, to: e.target.value })}
+                  className="h-9 bg-background"
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
         <div
           role="group"
@@ -349,15 +519,7 @@ export function OrdersPage() {
             title={isLoading ? "Chargement des commandes…" : "Aucune commande"}
             action={
               filtersActive && !isLoading ? (
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setSearch("");
-                    setDay("");
-                    setStatus("all");
-                    setPartnerFilter("all");
-                  }}
-                >
+                <Button variant="outline" onClick={resetFilters}>
                   Effacer les filtres
                 </Button>
               ) : undefined
@@ -415,6 +577,11 @@ export function OrdersPage() {
                             {formatCreatedAt(order.created_at)}
                             {order.order_type === "precommande" && " · Précommande"}
                           </p>
+                          {order.partner_id && (
+                            <span className="mr-1 mt-1 inline-block rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
+                              {partnerNames.get(order.partner_id) ?? "Entreprise"}
+                            </span>
+                          )}
                           {order.subscription_id && (
                             <span className="mt-1 inline-block rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-800">
                               Abonné
@@ -528,6 +695,9 @@ export function OrdersPage() {
                         update.mutate({ id: order.id, patch: { payment_status: next } })
                       }
                     />
+                    {order.partner_id && (
+                      <TonePill>{partnerNames.get(order.partner_id) ?? "Entreprise"}</TonePill>
+                    )}
                     {order.order_type === "precommande" && <TonePill>Précommande</TonePill>}
                   </div>
                   {open && (

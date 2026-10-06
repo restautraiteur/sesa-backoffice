@@ -1,5 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
-import { db, run } from "@core/lib/db";
+import { db, run, runAll } from "@core/lib/db";
 
 export type Plan = {
   id: string;
@@ -80,17 +80,22 @@ export const subscriptionsQuery = () =>
     queryKey: ["subscriptions"],
     queryFn: async () => {
       const [subs, meals, payments] = await Promise.all([
-        run<Omit<Subscription, "meals" | "payments">[]>(
-          db.from("subscriptions").select("*").order("created_at", { ascending: false }),
+        runAll<Omit<Subscription, "meals" | "payments">>(() =>
+          db
+            .from("subscriptions")
+            .select("*")
+            .order("created_at", { ascending: false })
+            .order("id"),
         ),
-        run<Meal[]>(
+        runAll<Meal>(() =>
           db
             .from("subscription_meals")
             .select("*, orders(reference, status, order_items(product_name, category, day_date))")
-            .order("meal_date"),
+            .order("meal_date")
+            .order("id"),
         ),
-        run<SubscriptionPayment[]>(
-          db.from("subscription_payments").select("*").order("created_at"),
+        runAll<SubscriptionPayment>(() =>
+          db.from("subscription_payments").select("*").order("created_at").order("id"),
         ),
       ]);
       return subs.map((s) => ({

@@ -113,6 +113,7 @@ export const PAYMENT_STATUS_LABELS: Record<string, string> = {
   a_la_livraison: "À payer à la livraison",
   paye: "Payé",
   abonnement: "Abonnement",
+  facture_entreprise: "Facturé à l'entreprise",
 };
 
 export const CATEGORY_LABELS: Record<string, string> = {

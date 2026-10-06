@@ -1,5 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
-import { db, run } from "@core/lib/db";
+import { db, run, runAll } from "@core/lib/db";
 
 export type Order = {
   id: string;
@@ -44,13 +44,15 @@ export const ordersQuery = () =>
   queryOptions({
     queryKey: ["orders"],
     queryFn: () =>
-      run<Order[]>(db.from("orders").select("*").order("created_at", { ascending: false })),
+      runAll<Order>(() =>
+        db.from("orders").select("*").order("created_at", { ascending: false }).order("id"),
+      ),
     refetchInterval: ORDERS_REFRESH_MS,
   });
 
 export const orderItemsQuery = () =>
   queryOptions({
     queryKey: ["order_items"],
-    queryFn: () => run<OrderItem[]>(db.from("order_items").select("*")),
+    queryFn: () => runAll<OrderItem>(() => db.from("order_items").select("*").order("id")),
     refetchInterval: ORDERS_REFRESH_MS,
   });
