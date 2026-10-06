@@ -1,5 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
-import { db, run } from "@core/lib/db";
+import { db, run, runAll } from "@core/lib/db";
 
 export type Partner = {
   id: string;
@@ -107,23 +107,21 @@ export const partnerLinesQuery = (from: string, to: string) =>
   queryOptions({
     queryKey: ["partner_lines", from, to],
     queryFn: async () => {
-      const rows = await run<
-        {
-          order_id: string;
-          day_date: string;
-          product_name: string;
-          quantity: number;
-          unit_price: number;
-          amount: number;
-          orders: {
-            reference: string;
-            partner_id: string;
-            first_name: string;
-            phone: string;
-            status: string;
-          };
-        }[]
-      >(
+      const rows = await runAll<{
+        order_id: string;
+        day_date: string;
+        product_name: string;
+        quantity: number;
+        unit_price: number;
+        amount: number;
+        orders: {
+          reference: string;
+          partner_id: string;
+          first_name: string;
+          phone: string;
+          status: string;
+        };
+      }>(() =>
         db
           .from("order_items")
           .select(
@@ -132,7 +130,9 @@ export const partnerLinesQuery = (from: string, to: string) =>
           .gte("day_date", from)
           .lte("day_date", to)
           .not("orders.partner_id", "is", null)
-          .neq("orders.status", "annulee"),
+          .neq("orders.status", "annulee")
+          .order("day_date")
+          .order("id"),
       );
       return rows.map<PartnerLine>((r) => ({
         order_id: r.order_id,

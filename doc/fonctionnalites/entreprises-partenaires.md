@@ -92,3 +92,17 @@ fonction `place_partner_order` (contrôle de l'heure limite et de l'employé, r�
 - RPC `partner_my_choices`, `partner_change_choice` (migration `20261006090000`), vérification du code
   partagée (`_partner_employee_auth`, 5 essais max).
 
+## Panier simplifié et traçabilité (6 octobre 2026)
+- **Panier entreprise** : l'employé choisit son entreprise et donne son **nom et son téléphone** (plus de
+  code). RPC `place_partner_order_simple`. Réglage par entreprise `open_enrollment` : « Liste des
+  employés uniquement » (numéro inconnu refusé) ou « Tout employé » (ajouté automatiquement à la liste).
+- Site : `CLIENT.individualOrders` (false = commandes entreprise uniquement ; true = choix
+  « Mon entreprise est partenaire » / « Livraison individuelle »). Récapitulatif par jour à droite.
+- Page « Mes repas » retirée.
+- **Traçabilité des repas** (onglet de la page Entreprises) : repas par personne, par entreprise, par
+  mois (graphique annuel), sur un mois, une année ou une période ; recherche, export CSV, fiche détaillée
+  d'une personne. Fonctions `meal_stats_by_person`, `meal_stats_by_month`, `meal_history`
+  (migration `20261006140000`, calculs côté base).
+- Lecture des lignes de commande **page par page** (`runAll`) : Supabase limite à 1 000 lignes par
+  requête, ce qui tronquait les bons et factures des gros mois.
+

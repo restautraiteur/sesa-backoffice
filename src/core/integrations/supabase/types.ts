@@ -1344,6 +1344,54 @@ export type Database = {
       lookup_subscriptions:
         | { Args: { p_phone: string }; Returns: Json }
         | { Args: { p_phone: string; p_pin: string }; Returns: Json };
+      meal_history: {
+        Args: { p_from: string; p_person: string; p_to: string };
+        Returns: {
+          amount: number;
+          category: string;
+          day_date: string;
+          order_status: string;
+          partner_name: string;
+          product_name: string;
+          quantity: number;
+          reference: string;
+        }[];
+      };
+      meal_stats_by_month: {
+        Args: {
+          p_partner?: string;
+          p_person?: string;
+          p_scope?: string;
+          p_year: number;
+        };
+        Returns: {
+          amount: number;
+          meals: number;
+          month: number;
+          people: number;
+        }[];
+      };
+      meal_stats_by_person: {
+        Args: {
+          p_from: string;
+          p_partner?: string;
+          p_scope?: string;
+          p_to: string;
+        };
+        Returns: {
+          amount: number;
+          days: number;
+          employee_id: string;
+          first_day: string;
+          last_day: string;
+          meals: number;
+          partner_id: string;
+          partner_name: string;
+          person_key: string;
+          person_name: string;
+          phone: string;
+        }[];
+      };
       partner_change_choice: {
         Args: {
           p_day_product: string;

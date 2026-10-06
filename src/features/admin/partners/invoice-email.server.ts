@@ -56,17 +56,32 @@ async function admin() {
 
 async function linesFor(partnerId: string, from: string, to: string): Promise<Line[]> {
   const db = await admin();
-  const { data, error } = await db
-    .from("order_items")
-    .select(
-      "day_date, product_name, quantity, amount, orders!inner(first_name, partner_id, status)",
-    )
-    .eq("orders.partner_id", partnerId)
-    .neq("orders.status", "annulee")
-    .gte("day_date", from)
-    .lte("day_date", to);
-  if (error) throw new Error(error.message);
-  return (data ?? []).map((r) => {
+  const data: {
+    day_date: string;
+    product_name: string;
+    quantity: number;
+    amount: number;
+    orders: unknown;
+  }[] = [];
+  // Lecture page par page (1 000 lignes maximum par requête).
+  for (let start = 0; ; start += 1000) {
+    const { data: page, error } = await db
+      .from("order_items")
+      .select(
+        "day_date, product_name, quantity, amount, orders!inner(first_name, partner_id, status)",
+      )
+      .eq("orders.partner_id", partnerId)
+      .neq("orders.status", "annulee")
+      .gte("day_date", from)
+      .lte("day_date", to)
+      .order("day_date")
+      .order("id")
+      .range(start, start + 999);
+    if (error) throw new Error(error.message);
+    data.push(...(page ?? []));
+    if ((page ?? []).length < 1000) break;
+  }
+  return data.map((r) => {
     const order = r.orders as unknown as { first_name: string };
     return {
       day_date: r.day_date,

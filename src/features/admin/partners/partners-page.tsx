@@ -64,6 +64,7 @@ import {
 } from "@/features/admin/partners/print";
 import { downloadFile } from "@/features/admin/orders/export-orders";
 import { PaymentDialog } from "@/features/admin/partners/payment-dialog";
+import { TraceabilityTab } from "@/features/admin/partners/traceability-tab";
 import { emailPartnerInvoice } from "@/features/admin/partners/invoice-email.functions";
 import { useServerFn } from "@tanstack/react-start";
 import { Checkbox } from "@ui/components/ui/checkbox";
@@ -85,6 +86,7 @@ const TABS = [
   ["entreprises", "Entreprises et employés"],
   ["bons", "Bons de commande"],
   ["factures", "Facturation"],
+  ["tracabilite", "Traçabilité des repas"],
 ] as const;
 type Tab = (typeof TABS)[number][0];
 
@@ -133,6 +135,7 @@ export function PartnersPage() {
       {tab === "entreprises" && <PartnersTab partners={partners} createSignal={createSignal} />}
       {tab === "bons" && <NotesTab partners={partners} />}
       {tab === "factures" && <InvoicesTab partners={partners} />}
+      {tab === "tracabilite" && <TraceabilityTab partners={partners} />}
     </div>
   );
 }

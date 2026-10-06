@@ -13,6 +13,19 @@ export async function run<T>(builder: any): Promise<T> {
   return (data ?? []) as T;
 }
 
+/**
+ * Comme `run`, mais lit toutes les lignes page par page : Supabase n'en renvoie que 1 000 par requête.
+ * `make` doit recréer la requête (triée de façon stable, ex. `.order("id")`) à chaque appel.
+ */
+export async function runAll<T>(make: () => any, pageSize = 1000): Promise<T[]> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const page = await run<T[]>(make().range(from, from + pageSize - 1));
+    rows.push(...page);
+    if (page.length < pageSize) return rows;
+  }
+}
+
 /** True when the failure is just an aborted/cancelled request (navigation, retry),
  * not a real server error the user should see. */
 export function isCancelledError(error: unknown): boolean {
