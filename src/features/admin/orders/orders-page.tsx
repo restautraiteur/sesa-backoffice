@@ -63,6 +63,11 @@ import {
 
 type Patch = { id: string; patch: Record<string, unknown> };
 
+/** Statuts de paiement proposés (avec « Facturé à l'entreprise » si le module est actif). */
+const PAYMENT_OPTIONS: readonly string[] = CLIENT.partners
+  ? [...PAYMENT_STATUSES, "facture_entreprise"]
+  : PAYMENT_STATUSES;
+
 export function OrdersPage() {
   const queryClient = useQueryClient();
   const { data: orders = [], isLoading } = useQuery(ordersQuery());
@@ -435,13 +440,11 @@ export function OrdersPage() {
                 className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm text-foreground"
               >
                 <option value="all">Tous les paiements</option>
-                {[...PAYMENT_STATUSES, ...(CLIENT.partners ? ["facture_entreprise"] : [])].map(
-                  (value) => (
-                    <option key={value} value={value}>
-                      {PAYMENT_STATUS_LABELS[value] ?? value}
-                    </option>
-                  ),
-                )}
+                {PAYMENT_OPTIONS.map((value) => (
+                  <option key={value} value={value}>
+                    {PAYMENT_STATUS_LABELS[value] ?? value}
+                  </option>
+                ))}
               </select>
             </label>
             <label className="space-y-1 text-xs font-medium text-muted-foreground">
@@ -616,7 +619,7 @@ export function OrdersPage() {
                           <ToneSelect
                             label={`Paiement de la commande ${order.reference}`}
                             value={order.payment_status}
-                            options={PAYMENT_STATUSES}
+                            options={PAYMENT_OPTIONS}
                             labels={PAYMENT_STATUS_LABELS}
                             tones={PAYMENT_STATUS_TONES}
                             onChange={(next) =>
@@ -688,7 +691,7 @@ export function OrdersPage() {
                     <ToneSelect
                       label={`Paiement de la commande ${order.reference}`}
                       value={order.payment_status}
-                      options={PAYMENT_STATUSES}
+                      options={PAYMENT_OPTIONS}
                       labels={PAYMENT_STATUS_LABELS}
                       tones={PAYMENT_STATUS_TONES}
                       onChange={(next) =>
