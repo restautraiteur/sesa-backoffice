@@ -16,6 +16,7 @@ import type { Partner } from "@/features/admin/partners/api";
 import { db, run } from "@core/lib/db";
 import { formatDay, formatPrice, todayISO } from "@core/lib/format";
 import { cn } from "@core/lib/utils";
+import { csvCell } from "@/features/admin/csv";
 
 /**
  * Traçabilité des repas : combien de repas chaque employé (ou particulier) a pris, quand, sur le
@@ -191,7 +192,7 @@ export function TraceabilityTab({ partners }: { partners: Partner[] }) {
         : `du ${formatDay(from).toLowerCase()} au ${formatDay(to).toLowerCase()}`;
 
   const exportCsv = () => {
-    const q = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const q = csvCell;
     const rows = [
       [
         "Nom",

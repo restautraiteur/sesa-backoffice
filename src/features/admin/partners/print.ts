@@ -7,6 +7,7 @@ import {
   type Partner,
   type PartnerLine,
 } from "@/features/admin/partners/api";
+import { csvCell } from "@/features/admin/csv";
 
 const NOTE_CSS = `
   .sign { display: flex; gap: 24px; margin-top: 36px; }
@@ -132,7 +133,7 @@ export function printInvoice(
 
 /** Détail de la facture en Excel (CSV) : une ligne par repas. */
 export function exportInvoiceCsv(partner: Partner, month: string, lines: PartnerLine[]) {
-  const q = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const q = csvCell;
   const rows = [
     [
       "Entreprise",

@@ -1,4 +1,5 @@
 import { CLIENT } from "@/config/client";
+import { csvCell } from "@/features/admin/csv";
 
 /**
  * Factures des entreprises partenaires envoyées par email au responsable de l'entreprise.
@@ -135,7 +136,7 @@ function invoiceHtml(
 }
 
 function invoiceCsv(lines: Line[]) {
-  const q = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const q = csvCell;
   const rows = [
     ["Jour", "Employé", "Plat", "Quantité", "Montant"],
     ...[...lines]

@@ -20,6 +20,8 @@ export type Partner = {
   billing_day: number | null;
   /** true : tout employé (nom + téléphone) peut commander ; false : liste des employés uniquement. */
   open_enrollment: boolean;
+  /** Nombre maximum de plats par employé et par jour. */
+  max_meals_per_day: number;
 };
 
 export type PartnerEmployee = {
@@ -31,6 +33,8 @@ export type PartnerEmployee = {
   pin: string;
   pin_failures: number;
   active: boolean;
+  /** Ajouté automatiquement à sa première commande (accès libre). */
+  auto_enrolled: boolean;
 };
 
 export type DeliveryNote = {

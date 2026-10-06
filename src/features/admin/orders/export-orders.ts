@@ -1,12 +1,8 @@
 import type { Order, OrderItem } from "@/features/admin/orders/api";
 import { ORDER_STATUS_LABELS, weekdayLabel } from "@core/lib/format";
+import { csvCell, htmlCell } from "@/features/admin/csv";
 
-function escape(value: unknown) {
-  const str = value === null || value === undefined ? "" : String(value);
-  return `"${str.replace(/"/g, '""')}"`;
-}
-
-export function ordersToCsv(orders: Order[], items: OrderItem[]) {
+function ordersToRows(orders: Order[], items: OrderItem[]) {
   const header = [
     "Référence",
     "Date de commande",
@@ -46,7 +42,13 @@ export function ordersToCsv(orders: Order[], items: OrderItem[]) {
         ]);
       });
   });
-  return [header, ...rows].map((row) => row.map(escape).join(";")).join("\r\n");
+  return [header, ...rows];
+}
+
+export function ordersToCsv(orders: Order[], items: OrderItem[]) {
+  return ordersToRows(orders, items)
+    .map((row) => row.map(csvCell).join(";"))
+    .join("\r\n");
 }
 
 export function downloadFile(filename: string, content: string, mime: string) {
@@ -64,18 +66,12 @@ export function exportOrdersCsv(orders: Order[], items: OrderItem[], filename: s
 }
 
 export function exportOrdersExcel(orders: Order[], items: OrderItem[], filename: string) {
-  // Excel-compatible SpreadsheetML-free approach: CSV with .xls tab-separated HTML table
-  const csv = ordersToCsv(orders, items);
-  const rows = csv.split("\r\n").map((line) =>
-    line
-      .slice(1, -1)
-      .split('";"')
-      .map((cell) => cell.replace(/""/g, '"')),
-  );
+  // Tableau HTML ouvert par Excel (.xls) ; chaque cellule est échappée et neutralisée.
+  const rows = ordersToRows(orders, items);
   const html = `<html><head><meta charset="utf-8" /></head><body><table border="1">${rows
     .map(
       (row, index) =>
-        `<tr>${row.map((cell) => `<${index === 0 ? "th" : "td"}>${cell}</${index === 0 ? "th" : "td"}>`).join("")}</tr>`,
+        `<tr>${row.map((cell) => `<${index === 0 ? "th" : "td"}>${htmlCell(cell)}</${index === 0 ? "th" : "td"}>`).join("")}</tr>`,
     )
     .join("")}</table></body></html>`;
   downloadFile(`${filename}.xls`, html, "application/vnd.ms-excel");

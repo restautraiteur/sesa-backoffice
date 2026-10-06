@@ -54,6 +54,7 @@ import {
   type PartnerEmployee,
   type PartnerLine,
 } from "@/features/admin/partners/api";
+import { csvCell } from "@/features/admin/csv";
 import {
   exportInvoiceCsv,
   printDeliveryNote,
@@ -375,6 +376,7 @@ type PartnerDraft = {
   payment_terms_days: string;
   billing_day: string;
   open_enrollment: boolean;
+  max_meals_per_day: string;
 };
 
 const EMPTY_PARTNER: PartnerDraft = {
@@ -391,6 +393,7 @@ const EMPTY_PARTNER: PartnerDraft = {
   payment_terms_days: "30",
   billing_day: "",
   open_enrollment: false,
+  max_meals_per_day: "2",
 };
 
 function PartnersTab({ partners, createSignal }: { partners: Partner[]; createSignal: number }) {
@@ -433,6 +436,7 @@ function PartnersTab({ partners, createSignal }: { partners: Partner[]; createSi
         payment_terms_days: Number(value.payment_terms_days) || 0,
         billing_day: value.billing_day ? Number(value.billing_day) : null,
         open_enrollment: value.open_enrollment,
+        max_meals_per_day: Math.min(20, Math.max(1, Number(value.max_meals_per_day) || 2)),
       };
       const { data, error } = value.id
         ? await db.from("partners").update(payload).eq("id", value.id).select("id").single()
@@ -540,6 +544,7 @@ function PartnersTab({ partners, createSignal }: { partners: Partner[]; createSi
                   payment_terms_days: String(current.payment_terms_days),
                   billing_day: current.billing_day ? String(current.billing_day) : "",
                   open_enrollment: current.open_enrollment,
+                  max_meals_per_day: String(current.max_meals_per_day ?? 2),
                 })
               }
             >
@@ -726,6 +731,11 @@ function PartnerDialog({
                 ))}
               </div>
             </div>
+            {field("max_meals_per_day", "Plats maximum par employé et par jour", {
+              type: "number",
+              min: 1,
+              max: 20,
+            })}
             <label className="flex items-center gap-3 text-sm">
               <Switch
                 checked={draft.active}
@@ -1090,7 +1100,7 @@ function EmployeesPanel({
 
   /** Liste des employés avec leurs codes, à transmettre au responsable de l'entreprise. */
   function exportEmployees(list: PartnerEmployee[]) {
-    const q = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const q = csvCell;
     const rows = [
       ["Nom complet", "Téléphone", "Email", "Code", "Actif"],
       ...list.map((e) => [e.full_name, e.phone, e.email, e.pin, e.active ? "oui" : "non"]),
@@ -1235,7 +1245,7 @@ function EmployeesPanel({
               </thead>
               <tbody className="divide-y divide-border">
                 {shown.map((e) => {
-                  const message = `Bonjour ${e.full_name}, vous pouvez commander vos repas chez ${CLIENT.name} pour ${partner.name}. Au panier, choisissez « ${partner.name} », puis entrez votre numéro et votre code : ${e.pin}. Commandes jusqu'à ${cutoffLabel(partner)}.`;
+                  const message = `Bonjour ${e.full_name}, vous pouvez commander vos repas chez ${CLIENT.name} pour ${partner.name}. Au panier, choisissez « ${partner.name} », puis entrez votre nom et votre numéro de téléphone. Commandes jusqu'à ${cutoffLabel(partner)}.`;
                   return (
                     <tr
                       key={e.id}
@@ -1253,7 +1263,17 @@ function EmployeesPanel({
                           }}
                         />
                       </td>
-                      <td className="px-3 py-2 font-medium">{e.full_name}</td>
+                      <td className="px-3 py-2 font-medium">
+                        {e.full_name}
+                        {e.auto_enrolled && (
+                          <span
+                            className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900"
+                            title="Ajouté automatiquement à sa première commande (accès libre) : à vérifier"
+                          >
+                            inscrit seul
+                          </span>
+                        )}
+                      </td>
                       <td className="px-3 py-2">{formatPhone(e.phone)}</td>
                       <td className="px-3 py-2">{e.email}</td>
                       <td className="px-3 py-2 font-mono">
@@ -1269,7 +1289,7 @@ function EmployeesPanel({
                           phone={e.phone}
                           text={message}
                           iconOnly
-                          title={`Envoyer le code à ${e.full_name}`}
+                          title={`Envoyer les instructions à ${e.full_name}`}
                         />
                         <Button
                           size="icon"
