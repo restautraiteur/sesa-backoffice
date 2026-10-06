@@ -18,6 +18,8 @@ export type Partner = {
   payment_terms_days: number;
   /** Jour d'envoi automatique de la facture par email (null = manuel, mois civil). */
   billing_day: number | null;
+  /** true : tout employé (nom + téléphone) peut commander ; false : liste des employés uniquement. */
+  open_enrollment: boolean;
 };
 
 export type PartnerEmployee = {

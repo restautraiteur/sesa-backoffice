@@ -371,6 +371,7 @@ type PartnerDraft = {
   logo_url: string;
   payment_terms_days: string;
   billing_day: string;
+  open_enrollment: boolean;
 };
 
 const EMPTY_PARTNER: PartnerDraft = {
@@ -386,6 +387,7 @@ const EMPTY_PARTNER: PartnerDraft = {
   logo_url: "",
   payment_terms_days: "30",
   billing_day: "",
+  open_enrollment: false,
 };
 
 function PartnersTab({ partners, createSignal }: { partners: Partner[]; createSignal: number }) {
@@ -427,6 +429,7 @@ function PartnersTab({ partners, createSignal }: { partners: Partner[]; createSi
         logo_url: value.logo_url || null,
         payment_terms_days: Number(value.payment_terms_days) || 0,
         billing_day: value.billing_day ? Number(value.billing_day) : null,
+        open_enrollment: value.open_enrollment,
       };
       const { data, error } = value.id
         ? await db.from("partners").update(payload).eq("id", value.id).select("id").single()
@@ -533,6 +536,7 @@ function PartnersTab({ partners, createSignal }: { partners: Partner[]; createSi
                   logo_url: current.logo_url ?? "",
                   payment_terms_days: String(current.payment_terms_days),
                   billing_day: current.billing_day ? String(current.billing_day) : "",
+                  open_enrollment: current.open_enrollment,
                 })
               }
             >
@@ -682,6 +686,43 @@ function PartnerDialog({
               {draft.cutoff_day_offset === "0" &&
                 " Attention : les employés pourront commander le jour même."}
             </p>
+            <div className="space-y-2 rounded-lg border border-border p-3">
+              <p className="text-sm font-medium">Qui peut commander au panier ?</p>
+              <p className="text-xs text-muted-foreground">
+                L'employé choisit l'entreprise et donne son nom et son téléphone, sans code.
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {(
+                  [
+                    [
+                      false,
+                      "Liste des employés uniquement",
+                      "Seuls les numéros de la liste sont acceptés.",
+                    ],
+                    [
+                      true,
+                      "Tout employé",
+                      "Un nouveau numéro est ajouté automatiquement à la liste.",
+                    ],
+                  ] as const
+                ).map(([value, title, text]) => (
+                  <button
+                    key={title}
+                    type="button"
+                    onClick={() => setDraft({ ...draft, open_enrollment: value })}
+                    className={cn(
+                      "rounded-lg border p-3 text-left text-sm",
+                      draft.open_enrollment === value
+                        ? "border-primary bg-primary/5 ring-1 ring-primary"
+                        : "border-border hover:border-primary/50",
+                    )}
+                  >
+                    <span className="block font-medium">{title}</span>
+                    <span className="block text-xs text-muted-foreground">{text}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
             <label className="flex items-center gap-3 text-sm">
               <Switch
                 checked={draft.active}

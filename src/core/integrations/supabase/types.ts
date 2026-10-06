@@ -609,6 +609,7 @@ export type Database = {
           logo_url: string | null;
           name: string;
           notes: string | null;
+          open_enrollment: boolean;
           payment_terms_days: number;
           updated_at: string;
         };
@@ -627,6 +628,7 @@ export type Database = {
           logo_url?: string | null;
           name: string;
           notes?: string | null;
+          open_enrollment?: boolean;
           payment_terms_days?: number;
           updated_at?: string;
         };
@@ -645,6 +647,7 @@ export type Database = {
           logo_url?: string | null;
           name?: string;
           notes?: string | null;
+          open_enrollment?: boolean;
           payment_terms_days?: number;
           updated_at?: string;
         };
@@ -1309,6 +1312,10 @@ export type Database = {
         Args: { p_partner: string; p_phone: string; p_pin: string };
         Returns: Record<string, unknown>;
       };
+      _place_partner_order_core: {
+        Args: { p_employee: string; p_items: Json; p_partner: string };
+        Returns: Json;
+      };
       admin_exists: { Args: never; Returns: boolean };
       check_subscription: {
         Args: { p_days: string[]; p_phone: string; p_pin: string };
@@ -1358,6 +1365,15 @@ export type Database = {
           p_partner: string;
           p_phone: string;
           p_pin: string;
+        };
+        Returns: Json;
+      };
+      place_partner_order_simple: {
+        Args: {
+          p_full_name: string;
+          p_items: Json;
+          p_partner: string;
+          p_phone: string;
         };
         Returns: Json;
       };
